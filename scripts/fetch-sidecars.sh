@@ -6,6 +6,9 @@ set -euo pipefail
 
 target="${1:?usage: fetch-sidecars.sh <macos-arm64|linux-x86_64|windows-x86_64>}"
 dest="sidecars/$target"
+# Clean slate per run: stale files from a previous extraction (or an older
+# pin's different archive layout) must never leak into a bundle.
+rm -rf "$dest"
 mkdir -p "$dest"
 
 # --- pins (resolved 2026-06-06; see RELEASING.md to bump) ---------------
