@@ -603,7 +603,9 @@ mod tests {
         let gen = state.request_preview().unwrap().gen;
         state.inputs.outdir = Some(dir.path().join("clean"));
         let mut outcome = outcome_with_plan(two_song_plan(state.inputs.audio.clone().unwrap()));
-        outcome.collisions.push("stale collision from old outdir".to_string());
+        outcome
+            .collisions
+            .push("stale collision from old outdir".to_string());
         state.on_preview(gen, outcome);
 
         assert!(state.preview.as_ref().unwrap().collisions.is_empty());
