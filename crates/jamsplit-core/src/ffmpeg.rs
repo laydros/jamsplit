@@ -141,6 +141,35 @@ mod tests {
     }
 
     #[test]
+    fn explicit_beats_adjacent_and_path() {
+        let explicit_dir = tempfile::tempdir().unwrap();
+        let adjacent_dir = tempfile::tempdir().unwrap();
+        let path_dir = tempfile::tempdir().unwrap();
+
+        // The pair we asked for explicitly.
+        let exp_ffmpeg = touch(explicit_dir.path(), "ffmpeg");
+        let exp_ffprobe = touch(explicit_dir.path(), "ffprobe");
+
+        // Full decoy pair in the adjacent (exe_dir) directory.
+        touch(adjacent_dir.path(), "ffmpeg");
+        touch(adjacent_dir.path(), "ffprobe");
+
+        // Full decoy pair in the PATH directory.
+        touch(path_dir.path(), "ffmpeg");
+        touch(path_dir.path(), "ffprobe");
+
+        let path_var = std::env::join_paths([path_dir.path()]).unwrap();
+        let got = FfmpegPaths::locate_with(
+            Some(&exp_ffmpeg),
+            Some(adjacent_dir.path()),
+            Some(&path_var),
+        )
+        .unwrap();
+
+        assert_eq!(got, FfmpegPaths { ffmpeg: exp_ffmpeg, ffprobe: exp_ffprobe });
+    }
+
+    #[test]
     fn nothing_found_mentions_the_flag() {
         let err = FfmpegPaths::locate_with(None, None, None).unwrap_err();
         assert!(err.to_string().contains("--ffmpeg-path"));
