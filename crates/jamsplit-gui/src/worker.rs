@@ -1,8 +1,10 @@
-use crate::state::{ExportEnd, PreviewOutcome, PreviewRequest};
+use crate::state::{ExportEnd, ExportRequest, PreviewOutcome, PreviewRequest};
 use jamsplit_core::audio::probe_audio;
-use jamsplit_core::ffmpeg::SongResult;
+use jamsplit_core::ffmpeg::{export, ExportOptions, SongResult};
 use jamsplit_core::markers::parse_markers;
 use jamsplit_core::plan::{check_collisions, plan};
+use jamsplit_core::report::{build_summary, write_summary};
+use std::sync::mpsc::Sender;
 
 /// Everything the workers send back to the UI thread.
 pub enum Msg {
@@ -76,6 +78,57 @@ pub fn run_preview(request: &PreviewRequest) -> PreviewOutcome {
         collisions,
         warnings,
     }
+}
+
+/// Run the preview pipeline on its own thread. `notify` is called after the
+/// send so the UI repaints (the app passes `ctx.request_repaint`).
+pub fn spawn_preview(request: PreviewRequest, tx: Sender<Msg>, notify: impl Fn() + Send + 'static) {
+    std::thread::spawn(move || {
+        let outcome = run_preview(&request);
+        let _ = tx.send(Msg::Preview {
+            gen: request.gen,
+            outcome,
+        });
+        notify();
+    });
+}
+
+/// Run export() on its own thread, streaming per-song results, then write
+/// the summary — always, including canceled and partially-failed runs.
+pub fn spawn_export(request: ExportRequest, tx: Sender<Msg>, notify: impl Fn() + Send + 'static) {
+    std::thread::spawn(move || {
+        let opts = ExportOptions {
+            outdir: request.outdir.clone(),
+            album: request.album.clone(),
+            artist: request.artist.clone(),
+            overwrite: request.overwrite,
+            cancel: request.cancel.clone(),
+        };
+        let progress_tx = tx.clone();
+        let notify_ref = &notify;
+        let result = export(&request.plan, &request.ffmpeg, &opts, &mut |song| {
+            let _ = progress_tx.send(Msg::Song(song.clone()));
+            notify_ref();
+        });
+        let end = match result {
+            Ok(report) => {
+                let summary = build_summary(
+                    &request.plan,
+                    &report,
+                    &request.markers,
+                    &request.format_name,
+                    request.album.as_deref(),
+                    request.artist.as_deref(),
+                );
+                let summary = write_summary(&summary, &request.outdir)
+                    .map_err(|e| format!("could not write summary: {e}"));
+                ExportEnd::Finished { report, summary }
+            }
+            Err(e) => ExportEnd::Failed(e.to_string()),
+        };
+        let _ = tx.send(Msg::ExportDone(end));
+        notify();
+    });
 }
 
 #[cfg(test)]
