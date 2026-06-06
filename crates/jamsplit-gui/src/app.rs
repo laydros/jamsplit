@@ -325,12 +325,10 @@ impl eframe::App for JamsplitApp {
                 ui.hyperlink_to("Website", "https://laydros.github.io/jamsplit/");
                 if let Ok(paths) = &self.state.ffmpeg {
                     ui.separator();
-                    let path = paths.ffmpeg.display().to_string();
-                    ui.add(
-                        egui::Label::new(egui::RichText::new(format!("ffmpeg: {path}")).weak())
-                            .truncate(),
-                    )
-                    .on_hover_text(path);
+                    let text = format!("ffmpeg: {}", paths.ffmpeg.display());
+                    // A truncated label tooltips its own full text when
+                    // elided — no explicit hover text, it would double up.
+                    ui.add(egui::Label::new(egui::RichText::new(text).weak()).truncate());
                 }
             });
         });
