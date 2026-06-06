@@ -13,7 +13,7 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("{e}");
+            eprintln!("{e:#}");
             ExitCode::from(1)
         }
     }
