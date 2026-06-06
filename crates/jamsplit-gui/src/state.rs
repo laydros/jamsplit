@@ -1,4 +1,4 @@
-use jamsplit_core::ffmpeg::FfmpegPaths;
+use jamsplit_core::ffmpeg::{CancelToken, ExportReport, FfmpegPaths, SongResult};
 use jamsplit_core::markers::MarkerFormat;
 use std::path::{Path, PathBuf};
 
@@ -90,6 +90,47 @@ pub struct PreviewRequest {
     pub ffmpeg: FfmpegPaths,
 }
 
+/// One export job for the worker thread. Carries everything the worker
+/// needs to run export() and then write the summary.
+#[derive(Debug, Clone)]
+pub struct ExportRequest {
+    pub plan: jamsplit_core::plan::SplitPlan,
+    pub ffmpeg: FfmpegPaths,
+    pub outdir: PathBuf,
+    pub album: Option<String>,
+    pub artist: Option<String>,
+    pub overwrite: bool,
+    pub cancel: CancelToken,
+    /// For the summary's markers_file / format fields.
+    pub markers: PathBuf,
+    pub format_name: String,
+}
+
+/// How an export run ended. `Failed` is export() refusing to start
+/// (e.g. outdir creation failed); per-song failures live in the report.
+#[derive(Debug, Clone)]
+pub enum ExportEnd {
+    Finished {
+        report: ExportReport,
+        /// Path of jamsplit-summary.json, or why writing it failed.
+        summary: Result<PathBuf, String>,
+    },
+    Failed(String),
+}
+
+/// Idle/Preview are both `Setup` — the presence of `preview` distinguishes
+/// them for rendering. Done covers success, partial failure, and cancel;
+/// the report inside says which.
+pub enum Phase {
+    Setup,
+    Exporting {
+        results: Vec<SongResult>,
+        total: usize,
+        cancel: CancelToken,
+    },
+    Done(ExportEnd),
+}
+
 /// Blank or whitespace-only tag fields are treated as unset.
 pub fn none_if_blank(s: &str) -> Option<String> {
     let trimmed = s.trim();
@@ -106,6 +147,7 @@ pub struct AppState {
     pub preview: Option<PreviewOutcome>,
     /// True while a preview job is outstanding.
     pub preview_pending: bool,
+    pub phase: Phase,
     next_gen: u64,
 }
 
@@ -116,6 +158,7 @@ impl AppState {
             ffmpeg,
             preview: None,
             preview_pending: false,
+            phase: Phase::Setup,
             next_gen: 0,
         }
     }
@@ -137,6 +180,10 @@ impl AppState {
     /// to hand to the worker, or None while inputs are incomplete. Bumping
     /// the generation makes any in-flight result stale.
     pub fn request_preview(&mut self) -> Option<PreviewRequest> {
+        if matches!(self.phase, Phase::Exporting { .. }) {
+            return None;
+        }
+        self.phase = Phase::Setup;
         let ffmpeg = self.ffmpeg.as_ref().ok()?.clone();
         let audio = self.inputs.audio.clone()?;
         let markers = self.inputs.markers.clone()?;
@@ -165,7 +212,8 @@ impl AppState {
 
     /// The Split button's single gate: a settled, clean preview.
     pub fn can_split(&self) -> bool {
-        !self.preview_pending
+        matches!(self.phase, Phase::Setup)
+            && !self.preview_pending
             && self.ffmpeg.is_ok()
             && self
                 .preview
@@ -192,13 +240,62 @@ impl AppState {
             }
         }
     }
+
+    /// Build the export job and enter Exporting. None unless can_split().
+    pub fn start_export(&mut self) -> Option<ExportRequest> {
+        if !self.can_split() {
+            return None;
+        }
+        let preview = self.preview.as_ref()?;
+        let plan = preview.plan.clone()?;
+        let total = plan.songs.len();
+        let cancel = CancelToken::new();
+        let request = ExportRequest {
+            plan,
+            ffmpeg: self.ffmpeg.as_ref().ok()?.clone(),
+            outdir: self.effective_outdir()?,
+            album: none_if_blank(&self.inputs.album),
+            artist: none_if_blank(&self.inputs.artist),
+            overwrite: self.inputs.overwrite,
+            cancel: cancel.clone(),
+            markers: self.inputs.markers.clone()?,
+            format_name: preview
+                .format
+                .as_ref()
+                .map(|(name, _)| name.clone())
+                .unwrap_or_default(),
+        };
+        self.phase = Phase::Exporting {
+            results: Vec::new(),
+            total,
+            cancel,
+        };
+        Some(request)
+    }
+
+    pub fn on_song(&mut self, result: SongResult) {
+        if let Phase::Exporting { results, .. } = &mut self.phase {
+            results.push(result);
+        }
+    }
+
+    pub fn on_export_done(&mut self, end: ExportEnd) {
+        self.phase = Phase::Done(end);
+    }
+
+    /// The Cancel button. Safe to call in any phase.
+    pub fn cancel_export(&self) {
+        if let Phase::Exporting { cancel, .. } = &self.phase {
+            cancel.cancel();
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use jamsplit_core::audio::AudioInfo;
-    use jamsplit_core::ffmpeg::FfmpegPaths;
+    use jamsplit_core::ffmpeg::{ExportReport, FfmpegPaths, SongResult, SongStatus};
     use jamsplit_core::plan::{Song, SplitPlan};
     use std::path::PathBuf;
 
@@ -360,6 +457,73 @@ mod tests {
         state.inputs.audio = Some(PathBuf::from("/recordings/jam.wav"));
         state.inputs.markers = Some(PathBuf::from("/recordings/songs.txt"));
         state
+    }
+
+    fn state_ready_to_split() -> AppState {
+        let mut state = ready_state();
+        state.inputs.album = "  Practice 2026-06-05  ".to_string();
+        let gen = state.request_preview().unwrap().gen;
+        state.on_preview(
+            gen,
+            outcome_with_plan(two_song_plan(PathBuf::from("/recordings/jam.wav"))),
+        );
+        state
+    }
+
+    #[test]
+    fn start_export_builds_request_and_enters_exporting() {
+        let mut state = state_ready_to_split();
+        let req = state.start_export().expect("ready to split");
+        assert_eq!(req.plan.songs.len(), 2);
+        assert_eq!(req.album.as_deref(), Some("Practice 2026-06-05")); // trimmed
+        assert_eq!(req.artist, None); // blank field omitted
+        assert_eq!(req.format_name, "plain");
+        assert_eq!(req.outdir, PathBuf::from("/recordings/jam"));
+        assert!(matches!(state.phase, Phase::Exporting { .. }));
+        assert!(!state.can_split());
+        assert!(state.start_export().is_none()); // no double-start
+        assert!(state.request_preview().is_none()); // inputs locked while exporting
+    }
+
+    #[test]
+    fn export_progress_and_completion() {
+        let mut state = state_ready_to_split();
+        let _req = state.start_export().unwrap();
+
+        let song = SongResult {
+            track: 1,
+            title: "Opener".to_string(),
+            file: PathBuf::from("/recordings/jam/01 - Opener.mp3"),
+            status: SongStatus::Ok,
+        };
+        state.on_song(song.clone());
+        let Phase::Exporting { results, total, .. } = &state.phase else {
+            panic!("should be exporting");
+        };
+        assert_eq!((results.len(), *total), (1, 2));
+
+        let report = ExportReport {
+            results: vec![song],
+            canceled: false,
+        };
+        state.on_export_done(ExportEnd::Finished {
+            report,
+            summary: Ok(PathBuf::from("/recordings/jam/jamsplit-summary.json")),
+        });
+        assert!(matches!(state.phase, Phase::Done(_)));
+
+        // editing (or Back) returns to setup with a fresh preview request
+        assert!(state.request_preview().is_some());
+        assert!(matches!(state.phase, Phase::Setup));
+    }
+
+    #[test]
+    fn cancel_sets_the_shared_token() {
+        let mut state = state_ready_to_split();
+        let req = state.start_export().unwrap();
+        assert!(!req.cancel.is_canceled());
+        state.cancel_export();
+        assert!(req.cancel.is_canceled());
     }
 
     #[test]
