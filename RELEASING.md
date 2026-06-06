@@ -8,7 +8,7 @@ published by hand.
 
 1. Decide the version (`X.Y.Z`, no `v`). Update `version` in the root
    `Cargo.toml` if it changed, run `cargo build` to refresh `Cargo.lock`,
-   commit, and push.
+   commit, and push to `main`.
 2. Confirm CI is green on `main`.
 3. Tag and push the tag:
 
@@ -29,9 +29,20 @@ If the Release run shows the `release` job as *skipped* (gray, not red),
 one of the three build legs failed — the draft was deliberately not
 created. Do not read a skipped release job as success.
 
-## If the build fails after tagging
+## If something fails after tagging
 
-Fix the problem on `main`, then move the tag and re-push:
+Fix the problem on `main` first. Then, **if a draft release was already
+created** (the run got far enough), delete it before retrying — the
+workflow cannot create a second release for the same tag:
+
+```bash
+gh release delete vX.Y.Z --yes
+```
+
+(If the `release` job was skipped because a build leg failed, no draft
+exists and there is nothing to delete.)
+
+Then move the tag and re-push:
 
 ```bash
 git tag -f vX.Y.Z
