@@ -14,14 +14,19 @@ fn load_icon() -> eframe::egui::IconData {
     }
 }
 
-fn main() -> eframe::Result {
+fn main() {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([760.0, 560.0])
             .with_icon(load_icon()),
+        // wgpu reaches DX12's WARP software rasterizer on Windows machines
+        // without working OpenGL (VMs, RDP, Basic Display driver), where
+        // glow cannot create a context.
+        #[cfg(windows)]
+        renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };
-    eframe::run_native(
+    let result = eframe::run_native(
         "jamsplit",
         options,
         Box::new(|cc| {
@@ -33,5 +38,15 @@ fn main() -> eframe::Result {
             });
             Ok(Box::new(jamsplit_gui::app::JamsplitApp::new()))
         }),
-    )
+    );
+    // The Windows build has no console, so a startup failure (renderer or
+    // window creation) would otherwise vanish without a trace.
+    if let Err(err) = result {
+        rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Error)
+            .set_title("jamsplit could not start")
+            .set_description(format!("{err}"))
+            .show();
+        std::process::exit(1);
+    }
 }

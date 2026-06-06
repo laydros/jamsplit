@@ -11,6 +11,12 @@ jamsplit-core = { path = "../jamsplit-core" }
 open = "5.3.5"
 rfd = "0.17.2"
 
+# wgpu (DX12, with the WARP software fallback) covers Windows machines
+# without working OpenGL — VMs, RDP sessions, and fresh installs on the
+# Basic Display driver — where the default glow renderer cannot start.
+[target.'cfg(windows)'.dependencies]
+eframe = { version = "0.33", features = ["wgpu"] }
+
 [dev-dependencies]
 tempfile = "3"
 serde_json = "1"
