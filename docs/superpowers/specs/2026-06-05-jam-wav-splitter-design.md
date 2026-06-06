@@ -1,5 +1,6 @@
 ---
 date: 2026-06-05
+updated: 2026-06-06
 tags:
   - design
   - jam-wav-splitter
@@ -51,14 +52,19 @@ audio file ──ffprobe──▶ duration        ┘        │
                                                  └─ GUI:      live preview + export()
 ```
 
-Parsers stay dumb: bytes in, `(start_seconds, title)` pairs out. `plan()` owns every business rule. Core API shape (signatures illustrative, firmed up during implementation planning):
+Parsers stay dumb: bytes in, `(start_seconds, title)` pairs out. `plan()` owns every business rule. Core API as implemented in M1:
 
 ```rust
-parse_markers(path, format) -> Result<ParsedMarkers, Vec<ParseError>>
-probe_audio(ffmpeg, path) -> Result<AudioInfo, AudioError>
-plan(markers, audio, opts) -> Result<SplitPlan, ValidationReport>   // Ok still carries warnings
-export(plan, opts, on_progress: impl FnMut(&SongResult)) -> ExportReport
+parse_markers(content: &str, format: Option<MarkerFormat>) -> Result<ParsedMarkers, Vec<ParseError>>
+probe_audio(ffmpeg: &FfmpegPaths, path: &Path) -> Result<AudioInfo, AudioError>
+plan(parsed: &ParsedMarkers, audio: &AudioInfo) -> Result<SplitPlan, PlanFailure>   // Ok still carries warnings
+check_collisions(plan: &SplitPlan, outdir: &Path, overwrite: bool) -> Result<(), Vec<String>>
+export(plan: &SplitPlan, ffmpeg: &FfmpegPaths, opts: &ExportOptions, on_progress: &mut dyn FnMut(&SongResult)) -> io::Result<ExportReport>
+build_summary(plan, report, markers_file, format, album, artist) -> Summary
+write_summary(summary: &Summary, outdir: &Path) -> io::Result<PathBuf>
 ```
+
+Reading the file is the frontend's job (`parse_markers` takes content, so core never touches paths it didn't need). Collision checking is deliberately separate from `plan()` — it depends on outdir and overwrite, which can change without re-planning. `export()` does not write the summary; frontends call `build_summary` + `write_summary` after export, including after partial failure or cancel.
 
 `export()` reports progress through a callback — the CLI prints from it, the GUI drives a progress bar from it. Core never prints. Cancellation is also core's job: `ExportOptions` carries a `CancelToken` (shared atomic flag), checked between songs and polled (~100 ms) while waiting on the running child. On cancel, the current ffmpeg child is killed, its `.part` removed, and the remaining songs are marked skipped in the report. The GUI's Cancel button sets the token; the CLI passes one that is never set.
 
@@ -155,8 +161,9 @@ Warnings (split proceeds):
 Single window, eframe/egui with rfd native file dialogs.
 
 - **Inputs:** audio picker, markers picker, format dropdown (auto + three formats), album/artist text fields, outdir picker (same `<audio-stem>/` default), overwrite checkbox.
-- **Live preview:** any input change re-runs `parse → probe → plan` on a worker thread (results back over an mpsc channel + repaint request — the UI thread never blocks). Shows the track table, detected format, warnings (yellow), and errors (red). The GUI is inherently the dry-run: you see the full plan before committing.
-- **States:** Idle → Preview (Split disabled while errors exist) → Exporting (per-song progress bar via `export()`'s callback; Cancel sets the core `CancelToken`, which kills the current ffmpeg child and removes its `.part`) → Done (summary + "Open output folder") / Failed / Canceled (completed songs kept, summary still written).
+- **ffmpeg:** located at startup via `FfmpegPaths::locate` (adjacent binary, then PATH — no flag in the GUI). When lookup fails, the error with install hints is shown alongside an ffmpeg path picker — the GUI's equivalent of `--ffmpeg-path` and the only recovery a GUI user has. While ffmpeg is found, no picker is shown.
+- **Live preview:** any input change re-runs `parse → probe → plan → check_collisions` on a worker thread (results back over an mpsc channel + repaint request — the UI thread never blocks). Shows the track table, detected format, warnings (yellow), and errors (red). Collisions with existing output files are errors that disable Split unless overwrite is checked; outdir and overwrite changes re-run the collision check without re-planning. The GUI is inherently the dry-run: you see the full plan before committing.
+- **States:** Idle → Preview (Split disabled while errors exist) → Exporting (progress advances per settled song — "track K of N", no intra-song percent, since `export()`'s callback fires after each song completes; Cancel sets the core `CancelToken`, which kills the current ffmpeg child and removes its `.part`, and stays responsive mid-song) → Done (summary + "Open output folder") / Failed / Canceled (completed songs kept, summary still written).
 - The state machine lives in a plain struct, testable without egui. `#![windows_subsystem = "windows"]` keeps Windows from opening a console. Writes the same `jamsplit-summary.json`.
 - egui apps look like egui, not native widgets — accepted for this tool. No waveform, no playback: file pickers and a table.
 

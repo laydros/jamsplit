@@ -6,13 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 jamsplit splits one long jam-session recording (usually a Zoom-recorder WAV) into per-song MP3s using a human-made marker file. Rust workspace; ffmpeg/ffprobe do all audio work as external subprocesses.
 
-## Status (2026-06-05)
+## Status (2026-06-06)
 
-M1 (engine + CLI) implemented. Next: M2 (egui GUI) — needs its own
-implementation plan written against the real core API.
+M1 (engine + CLI) implemented. M2 implementation plan is written and ready
+to execute: `docs/superpowers/plans/2026-06-06-m2-egui-gui.md` (read its
+header — it mandates the superpowers plan-execution skills).
 
 - M1 - engine + CLI: done
-- M2 - egui GUI; nothing ships to users before M2 is done
+- M2 - egui GUI: plan ready, implementation not started; nothing ships to users before M2 is done
 - M3 - release packaging CI (out of v1 scope)
 
 ## Source of truth
