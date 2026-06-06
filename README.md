@@ -6,7 +6,8 @@ one MP3 per song, using a marker file with song start times and titles.
 ## Requirements
 
 - ffmpeg and ffprobe. jamsplit looks for them in this order: the
-  `--ffmpeg-path` flag, next to the jamsplit executable, then PATH.
+  `--ffmpeg-path` flag (CLI) or the Locate button (GUI), next to the
+  executable, then PATH.
   - macOS: `brew install ffmpeg`
   - Windows: `winget install Gyan.FFmpeg`
   - Linux: install `ffmpeg` with your package manager
@@ -34,6 +35,21 @@ never overwritten unless you pass `--overwrite`.
 
 Exit codes: `0` success, `1` invalid input (bad markers, missing files),
 `2` one or more songs failed to export.
+
+## GUI
+
+`jamsplit-gui` is the same splitter as a window: pick the recording and
+the marker file, check the track table, click Split.
+
+```bash
+cargo run -p jamsplit-gui
+```
+
+The plan preview updates live as you change inputs and shows the same
+warnings and errors as `jamsplit validate`. Existing output files block
+Split until you check "Overwrite existing files". If ffmpeg isn't found
+(install hints are shown), the "Locate ffmpeg…" button lets you point at
+a binary directly — ffprobe must sit next to it.
 
 ## Marker formats
 

@@ -8,13 +8,12 @@ jamsplit splits one long jam-session recording (usually a Zoom-recorder WAV) int
 
 ## Status (2026-06-06)
 
-M1 (engine + CLI) implemented. M2 implementation plan is written and ready
-to execute: `docs/superpowers/plans/2026-06-06-m2-egui-gui.md` (read its
-header — it mandates the superpowers plan-execution skills).
+M1 and M2 are done. The plan file `docs/superpowers/plans/2026-06-06-m2-egui-gui.md`
+is the historical record of M2 design decisions.
 
 - M1 - engine + CLI: done
-- M2 - egui GUI: plan ready, implementation not started; nothing ships to users before M2 is done
-- M3 - release packaging CI (out of v1 scope)
+- M2 - egui GUI: done (2026-06-06)
+- M3 - release packaging CI (out of v1 scope, next)
 
 ## Source of truth
 
@@ -27,7 +26,7 @@ The design doc records decided trade-offs (Rust over Go, per-song ffmpeg invocat
 
 ## Architecture invariants
 
-Three-crate workspace: `jamsplit-core` (lib, all logic), `jamsplit-cli` (clap bin `jamsplit`), `jamsplit-gui` (egui bin, M2). Full detail is in the design doc; the load-bearing rules are:
+Three-crate workspace: `jamsplit-core` (lib, all logic), `jamsplit-cli` (clap bin `jamsplit`), `jamsplit-gui` (egui bin). Full detail is in the design doc; the load-bearing rules are:
 
 - Core never prints and never depends on clap or egui. `export()` reports progress through a callback - the CLI prints from it, the GUI drives a progress bar from it.
 - Parsers (audacity/plain/reaper) are dumb: bytes in, `(start_seconds, title)` out. Every business rule (sorting, duplicates, bounds, untitled naming, filename sanitization, boundary math) lives in `plan()`, which is where unit tests concentrate.
@@ -42,4 +41,6 @@ Three-crate workspace: `jamsplit-core` (lib, all logic), `jamsplit-cli` (clap bi
   skips fail (CI mode).
 - `cargo test -p jamsplit-core <name>` — one test.
 - `cargo run -p jamsplit-cli -- split --audio x.wav --markers m.txt` — run the CLI.
+- `cargo run -p jamsplit-gui` — run the GUI.
+- Before calling a GUI build done, run through `docs/gui-manual-test-checklist.md`.
 - `cargo fmt --all` and `cargo clippy --workspace` before finishing a task.
