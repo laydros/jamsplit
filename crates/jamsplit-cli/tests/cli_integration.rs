@@ -272,3 +272,34 @@ fn dry_run_with_overwrite_shows_would_overwrite_label() {
     // dry-run must not touch any files
     assert_eq!(std::fs::read(outdir.join("01 - One.mp3")).unwrap(), b"old");
 }
+
+#[cfg(unix)]
+#[test]
+fn split_partial_failure_exits_two_even_when_summary_write_also_fails() {
+    use std::os::unix::fs::PermissionsExt;
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
+    // Pre-create the outdir and make it read-only so every song encode AND
+    // summary write fail (can't create .part files or summary json in it).
+    let outdir = dir.path().join("out");
+    std::fs::create_dir_all(&outdir).unwrap();
+    std::fs::set_permissions(&outdir, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+    let result = jamsplit()
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--outdir")
+        .arg(&outdir)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("error: song"))
+        .stderr(predicates::str::contains("could not write summary"));
+
+    // Restore permissions so tempdir cleanup works.
+    std::fs::set_permissions(&outdir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    drop(result);
+}

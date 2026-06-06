@@ -211,6 +211,16 @@ pub fn split(args: &SplitArgs) -> Result<bool> {
         println!("[{}/{total}] {} ... {outcome}", r.track, r.file.display());
     })?;
 
+    // Emit per-song failure details first — before anything that can fail —
+    // so the user always sees which songs failed even if summary write errors.
+    if report.any_failed() {
+        for r in &report.results {
+            if let SongStatus::Failed { stderr_tail } = &r.status {
+                eprintln!("error: song {} failed:\n{stderr_tail}", r.track);
+            }
+        }
+    }
+
     let summary = build_summary(
         &loaded.plan,
         &report,
@@ -219,16 +229,18 @@ pub fn split(args: &SplitArgs) -> Result<bool> {
         args.album.as_deref(),
         args.artist.as_deref(),
     );
-    let summary_path = write_summary(&summary, &outdir)?;
-    println!("summary: {}", summary_path.display());
-
-    if report.any_failed() {
-        for r in &report.results {
-            if let SongStatus::Failed { stderr_tail } = &r.status {
-                eprintln!("error: song {} failed:\n{stderr_tail}", r.track);
-            }
+    match write_summary(&summary, &outdir) {
+        Ok(summary_path) => println!("summary: {}", summary_path.display()),
+        Err(e) if report.any_failed() => {
+            // Export already failed: report summary error but still exit 2.
+            eprintln!("error: could not write summary: {e}");
+            return Ok(false);
         }
-        return Ok(false);
+        Err(e) => {
+            // All exports succeeded; summary write is the only failure.
+            return Err(e).context("could not write summary");
+        }
     }
-    Ok(true)
+
+    Ok(!report.any_failed())
 }
