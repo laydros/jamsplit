@@ -140,11 +140,12 @@ pub fn detect_format(content: &str) -> MarkerFormat {
     MarkerFormat::Plain
 }
 
-/// Parse markers, auto-detecting the format unless one is forced.
+/// Parse markers, auto-detecting the format unless one is forced. A leading UTF-8 BOM is stripped.
 pub fn parse_markers(
     content: &str,
     format: Option<MarkerFormat>,
 ) -> Result<ParsedMarkers, Vec<ParseError>> {
+    let content = content.strip_prefix('\u{feff}').unwrap_or(content);
     let format = format.unwrap_or_else(|| detect_format(content));
     let markers = match format {
         MarkerFormat::Audacity => audacity::parse(content)?,
@@ -256,5 +257,16 @@ mod tests {
         let got = parse_markers("0:00 One\n", None).unwrap();
         assert_eq!(got.format, MarkerFormat::Plain);
         assert_eq!(got.markers.len(), 1);
+    }
+
+    #[test]
+    fn utf8_bom_is_stripped_before_detection_and_parsing() {
+        let got = parse_markers("\u{feff}#,Name,Start,End,Length\nM1,Song,0:00.000,,\n", None).unwrap();
+        assert_eq!(got.format, MarkerFormat::Reaper);
+        assert_eq!(got.markers.len(), 1);
+
+        let got = parse_markers("\u{feff}0:00 One\n", None).unwrap();
+        assert_eq!(got.format, MarkerFormat::Plain);
+        assert_eq!(got.markers[0].title, "One");
     }
 }
