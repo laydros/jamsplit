@@ -15,6 +15,30 @@ pub struct ParseError {
     pub message: String,
 }
 
+/// Validate that a timestamp component contains only ASCII digits, with the
+/// last component optionally having the form `digits.digits` (one dot, digits
+/// on both sides). Rejects empty strings, leading `+`/`-`, exponent notation,
+/// bare-dot forms like `.5` or `5.`, and non-finite spellings like `nan`/`inf`.
+fn valid_component_shape(part: &str, is_last: bool) -> bool {
+    if part.is_empty() {
+        return false;
+    }
+    if is_last {
+        // Allow either all-digits or digits.digits (one dot, digits both sides)
+        match part.split_once('.') {
+            None => part.chars().all(|c| c.is_ascii_digit()),
+            Some((int, frac)) => {
+                !int.is_empty()
+                    && !frac.is_empty()
+                    && int.chars().all(|c| c.is_ascii_digit())
+                    && frac.chars().all(|c| c.is_ascii_digit())
+            }
+        }
+    } else {
+        part.chars().all(|c| c.is_ascii_digit())
+    }
+}
+
 /// Parse a timestamp in one of three forms decided by colon count:
 /// `3722.5` (raw seconds), `62:11` (M:SS, leading component unbounded),
 /// `1:02:11.5` (H:MM:SS). Components after the first must be < 60.
@@ -30,6 +54,9 @@ pub fn parse_timestamp(s: &str) -> Result<f64, String> {
     let mut total = 0.0;
     for (i, part) in parts.iter().enumerate() {
         let is_last = i == parts.len() - 1;
+        if !valid_component_shape(part, is_last) {
+            return Err(format!("'{part}' is not a valid component in '{s}'"));
+        }
         // only the final component may carry a fraction
         let value: f64 = if is_last {
             part.parse().map_err(|_| format!("'{part}' is not a number in '{s}'"))?
@@ -92,5 +119,24 @@ mod tests {
         assert!(parse_timestamp("9.1.00").is_err()); // bars.beats shape, not a time
         assert!(parse_timestamp("5:").is_err());
         assert!(parse_timestamp(":30").is_err());
+    }
+
+    #[test]
+    fn rejects_nonfinite_and_exponent_forms() {
+        // non-finite float spellings
+        assert!(parse_timestamp("nan").is_err());
+        assert!(parse_timestamp("NaN").is_err());
+        assert!(parse_timestamp("inf").is_err());
+        assert!(parse_timestamp("infinity").is_err());
+        assert!(parse_timestamp("INFINITY").is_err());
+        // leading '+' on any component
+        assert!(parse_timestamp("+5").is_err());
+        assert!(parse_timestamp("+1:30").is_err());
+        assert!(parse_timestamp("1:+2:30").is_err());
+        // exponent notation
+        assert!(parse_timestamp("1e3").is_err());
+        // bare-dot fraction forms
+        assert!(parse_timestamp(".5").is_err());
+        assert!(parse_timestamp("5.").is_err());
     }
 }
