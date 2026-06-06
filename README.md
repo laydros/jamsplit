@@ -97,3 +97,7 @@ JAMSPLIT_TEST_REQUIRE_FFMPEG=1 cargo test   # what CI runs — skips become fail
 ```
 
 Design and plans live in `docs/superpowers/`.
+
+## License
+
+GPL-3.0. See [LICENSE](LICENSE).
