@@ -1,4 +1,8 @@
+use crate::plan::Song;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// Resolved locations of the two binaries we drive.
 #[derive(Debug, Clone, PartialEq)]
@@ -81,10 +85,137 @@ impl FfmpegPaths {
     }
 }
 
+/// Shared cancel flag. The GUI's Cancel button sets it; the CLI passes one
+/// that is never set.
+#[derive(Debug, Clone, Default)]
+pub struct CancelToken(Arc<AtomicBool>);
+
+impl CancelToken {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn cancel(&self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
+    pub fn is_canceled(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExportOptions {
+    pub outdir: std::path::PathBuf,
+    pub album: Option<String>,
+    pub artist: Option<String>,
+    /// Callers must run `plan::check_collisions` first; export itself
+    /// renames over existing targets without asking.
+    pub overwrite: bool,
+    pub cancel: CancelToken,
+}
+
+/// The `.part` path a song is encoded into before the success-rename.
+pub fn part_path(opts: &ExportOptions, song: &Song) -> std::path::PathBuf {
+    opts.outdir.join(format!("{}.part", song.filename))
+}
+
+/// Build the exact ffmpeg argv for one song (everything after the program
+/// name). Pure — unit-tested against the design doc's invocation.
+pub fn build_song_args(
+    audio: &Path,
+    song: &Song,
+    total: usize,
+    opts: &ExportOptions,
+) -> Vec<OsString> {
+    let mut args: Vec<OsString> =
+        ["-hide_banner", "-nostdin", "-v", "error", "-y", "-ss"]
+            .iter()
+            .map(OsString::from)
+            .collect();
+    args.push(song.start_seconds.to_string().into());
+    if !song.to_eof {
+        args.push("-t".into());
+        args.push((song.end_seconds - song.start_seconds).to_string().into());
+    }
+    args.push("-i".into());
+    args.push(audio.as_os_str().to_os_string());
+    for s in ["-map_metadata", "-1", "-c:a", "libmp3lame", "-q:a", "0"] {
+        args.push(s.into());
+    }
+    args.push("-metadata".into());
+    args.push(format!("title={}", song.title).into());
+    args.push("-metadata".into());
+    args.push(format!("track={}/{total}", song.track).into());
+    if let Some(album) = &opts.album {
+        args.push("-metadata".into());
+        args.push(format!("album={album}").into());
+    }
+    if let Some(artist) = &opts.artist {
+        args.push("-metadata".into());
+        args.push(format!("artist={artist}").into());
+    }
+    args.push("-f".into());
+    args.push("mp3".into());
+    args.push(part_path(opts, song).into_os_string());
+    args
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs::File;
+
+    fn song(track: usize, title: &str, start: f64, end: f64, to_eof: bool) -> Song {
+        Song {
+            track,
+            title: title.to_string(),
+            filename: crate::plan::filename_for(track, 3, title),
+            start_seconds: start,
+            end_seconds: end,
+            to_eof,
+        }
+    }
+
+    fn opts(album: Option<&str>, artist: Option<&str>) -> ExportOptions {
+        ExportOptions {
+            outdir: "/out".into(),
+            album: album.map(String::from),
+            artist: artist.map(String::from),
+            overwrite: false,
+            cancel: CancelToken::new(),
+        }
+    }
+
+    #[test]
+    fn middle_song_args_match_the_design() {
+        let s = song(2, "AC/DC Jam", 323.5, 410.0, false);
+        let got = build_song_args(Path::new("/in/jam.wav"), &s, 3, &opts(Some("Practice"), None));
+        let want: Vec<OsString> = [
+            "-hide_banner", "-nostdin", "-v", "error", "-y",
+            "-ss", "323.5", "-t", "86.5",
+            "-i", "/in/jam.wav",
+            "-map_metadata", "-1",
+            "-c:a", "libmp3lame", "-q:a", "0",
+            "-metadata", "title=AC/DC Jam", // tag keeps the slash — only filenames sanitize
+            "-metadata", "track=2/3",
+            "-metadata", "album=Practice",
+            "-f", "mp3",
+            "/out/02 - AC_DC Jam.mp3.part",
+        ]
+        .iter()
+        .map(OsString::from)
+        .collect();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn last_song_omits_duration() {
+        let s = song(3, "Closer", 410.0, 600.0, true);
+        let got = build_song_args(Path::new("/in/jam.wav"), &s, 3, &opts(None, Some("The Band")));
+        let joined: Vec<String> = got.iter().map(|o| o.to_string_lossy().into_owned()).collect();
+        assert!(!joined.contains(&"-t".to_string()));
+        assert!(joined.contains(&"artist=The Band".to_string()));
+        assert!(!joined.iter().any(|a| a.starts_with("album=")));
+    }
 
     fn touch(dir: &Path, name: &str) -> PathBuf {
         let p = dir.join(exe(name));
