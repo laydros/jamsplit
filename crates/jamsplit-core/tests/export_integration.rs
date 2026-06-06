@@ -166,3 +166,73 @@ fn overwrite_true_replaces_existing_outputs() {
     assert!(!second.any_failed());
     assert!(outdir.join("01 - One.mp3").is_file());
 }
+
+#[test]
+fn cancel_mid_song_kills_ffmpeg_and_removes_part() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    // 240-second WAV so song 1 takes several seconds to encode, giving the
+    // polling loop time to observe the cancel flag mid-encode.
+    let wav = make_wav(&ff, dir.path(), 240.0);
+    let audio = probe_audio(&ff, &wav).unwrap();
+    let parsed = parse_markers("0:00 First\n120.0 Second\n", None).unwrap();
+    let p = plan(&parsed, &audio).unwrap();
+    let outdir = dir.path().join("out");
+    std::fs::create_dir_all(&outdir).unwrap();
+
+    let o = ExportOptions {
+        outdir: outdir.clone(),
+        album: None,
+        artist: None,
+        overwrite: false,
+        cancel: CancelToken::new(),
+    };
+    let cancel = o.cancel.clone();
+    let outdir_watch = outdir.clone();
+
+    // Watcher thread: polls every 10ms until a .part file appears, then
+    // cancels. Falls back to canceling after a 15s deadline so the test
+    // cannot hang if the .part never appears.
+    let watcher = std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        loop {
+            let found = std::fs::read_dir(&outdir_watch)
+                .map(|entries| {
+                    entries
+                        .filter_map(|e| e.ok())
+                        .any(|e| e.file_name().to_string_lossy().ends_with(".part"))
+                })
+                .unwrap_or(false);
+            if found || std::time::Instant::now() >= deadline {
+                cancel.cancel();
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    });
+
+    let report = export(&p, &ff, &o, &mut |_| {}).unwrap();
+    watcher.join().unwrap();
+
+    // Both the killed song and the never-started song are reported Skipped.
+    for result in &report.results {
+        assert!(
+            matches!(result.status, SongStatus::Skipped),
+            "expected Skipped for track {}, got {:?}",
+            result.track,
+            result.status
+        );
+    }
+
+    // No .mp3 and no .part files remain after cancellation.
+    let leftover: Vec<_> = std::fs::read_dir(&outdir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".mp3") || name.ends_with(".part"))
+        .collect();
+    assert!(
+        leftover.is_empty(),
+        "unexpected files left after cancel: {leftover:?}"
+    );
+}
