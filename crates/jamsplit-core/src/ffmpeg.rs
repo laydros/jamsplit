@@ -159,6 +159,159 @@ pub fn build_song_args(
     args
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum SongStatus {
+    Ok,
+    Failed { stderr_tail: String },
+    Skipped,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SongResult {
+    pub track: usize,
+    pub title: String,
+    /// Final (post-rename) path the song was or would have been written to.
+    pub file: std::path::PathBuf,
+    pub status: SongStatus,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExportReport {
+    pub results: Vec<SongResult>,
+    pub canceled: bool,
+}
+
+impl ExportReport {
+    pub fn any_failed(&self) -> bool {
+        self.results.iter().any(|r| matches!(r.status, SongStatus::Failed { .. }))
+    }
+}
+
+/// Export every song in the plan. Creates `opts.outdir` if needed. Calls
+/// `on_progress` after each song settles (ok, failed, or skipped).
+pub fn export(
+    plan: &crate::plan::SplitPlan,
+    ffmpeg: &FfmpegPaths,
+    opts: &ExportOptions,
+    on_progress: &mut dyn FnMut(&SongResult),
+) -> std::io::Result<ExportReport> {
+    std::fs::create_dir_all(&opts.outdir)?;
+    let total = plan.songs.len();
+    let mut results = Vec::with_capacity(total);
+    let mut canceled = false;
+
+    for song in &plan.songs {
+        let target = opts.outdir.join(&song.filename);
+        if canceled || opts.cancel.is_canceled() {
+            canceled = true;
+            let result = SongResult {
+                track: song.track,
+                title: song.title.clone(),
+                file: target,
+                status: SongStatus::Skipped,
+            };
+            on_progress(&result);
+            results.push(result);
+            continue;
+        }
+
+        let part = part_path(opts, song);
+        let status = match run_one(ffmpeg, &plan.audio.path, song, total, opts, &part) {
+            RunOutcome::Done => {
+                // Windows cannot rename over an existing file
+                if opts.overwrite && target.exists() {
+                    let _ = std::fs::remove_file(&target);
+                }
+                match std::fs::rename(&part, &target) {
+                    Ok(()) => SongStatus::Ok,
+                    Err(e) => SongStatus::Failed { stderr_tail: format!("rename failed: {e}") },
+                }
+            }
+            RunOutcome::Failed(stderr_tail) => {
+                let _ = std::fs::remove_file(&part);
+                SongStatus::Failed { stderr_tail }
+            }
+            RunOutcome::Canceled => {
+                let _ = std::fs::remove_file(&part);
+                canceled = true;
+                SongStatus::Skipped
+            }
+        };
+
+        let result = SongResult {
+            track: song.track,
+            title: song.title.clone(),
+            file: target,
+            status,
+        };
+        on_progress(&result);
+        results.push(result);
+    }
+
+    Ok(ExportReport { results, canceled })
+}
+
+enum RunOutcome {
+    Done,
+    Failed(String),
+    Canceled,
+}
+
+fn last_lines(s: &str, n: usize) -> String {
+    let lines: Vec<&str> = s.lines().collect();
+    let start = lines.len().saturating_sub(n);
+    lines[start..].join("\n")
+}
+
+fn run_one(
+    ffmpeg: &FfmpegPaths,
+    audio: &Path,
+    song: &crate::plan::Song,
+    total: usize,
+    opts: &ExportOptions,
+    _part: &Path,
+) -> RunOutcome {
+    use std::io::Read;
+
+    let mut child = match std::process::Command::new(&ffmpeg.ffmpeg)
+        .args(build_song_args(audio, song, total, opts))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => return RunOutcome::Failed(format!("could not start ffmpeg: {e}")),
+    };
+
+    let exit = loop {
+        if opts.cancel.is_canceled() {
+            let _ = child.kill();
+            let _ = child.wait();
+            return RunOutcome::Canceled;
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
+            Err(e) => return RunOutcome::Failed(format!("waiting on ffmpeg failed: {e}")),
+        }
+    };
+
+    // -v error keeps stderr tiny, so reading after exit cannot deadlock on a
+    // full pipe (it fits in the OS pipe buffer)
+    let mut stderr = String::new();
+    if let Some(mut pipe) = child.stderr.take() {
+        let _ = pipe.read_to_string(&mut stderr);
+    }
+
+    if exit.success() {
+        RunOutcome::Done
+    } else {
+        RunOutcome::Failed(last_lines(stderr.trim(), 15))
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
