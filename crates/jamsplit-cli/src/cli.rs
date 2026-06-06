@@ -141,6 +141,26 @@ pub fn inspect(args: &CommonArgs) -> Result<()> {
     Ok(())
 }
 
+/// Check for file collisions, print diagnostics, and bail if any are found.
+/// Used by both the dry-run and real export paths so they cannot drift.
+fn collision_gate(
+    plan: &jamsplit_core::plan::SplitPlan,
+    outdir: &std::path::Path,
+    overwrite: bool,
+) -> Result<()> {
+    if let Err(collisions) = check_collisions(plan, outdir, overwrite) {
+        for c in &collisions {
+            eprintln!("error: {c}");
+        }
+        eprintln!("pass --overwrite to replace existing files");
+        anyhow::bail!(
+            "refusing to overwrite {} existing file(s)",
+            collisions.len()
+        );
+    }
+    Ok(())
+}
+
 /// Exit meaning: Ok(true) = all exports fine, Ok(false) = some failed (exit 2).
 pub fn split(args: &SplitArgs) -> Result<bool> {
     let loaded = load(&args.common)?;
@@ -159,6 +179,7 @@ pub fn split(args: &SplitArgs) -> Result<bool> {
         if !outdir.exists() {
             println!("would create directory: {}", outdir.display());
         }
+        collision_gate(&loaded.plan, &outdir, args.overwrite)?;
         for song in &loaded.plan.songs {
             let target = outdir.join(&song.filename);
             let collides = if target.exists() {
@@ -171,16 +192,7 @@ pub fn split(args: &SplitArgs) -> Result<bool> {
         return Ok(true);
     }
 
-    if let Err(collisions) = check_collisions(&loaded.plan, &outdir, args.overwrite) {
-        for c in &collisions {
-            eprintln!("error: {c}");
-        }
-        eprintln!("pass --overwrite to replace existing files");
-        anyhow::bail!(
-            "refusing to overwrite {} existing file(s)",
-            collisions.len()
-        );
-    }
+    collision_gate(&loaded.plan, &outdir, args.overwrite)?;
 
     let opts = ExportOptions {
         outdir: outdir.clone(),

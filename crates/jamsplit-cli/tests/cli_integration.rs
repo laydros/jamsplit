@@ -221,3 +221,54 @@ fn split_partial_failure_exits_two_and_still_writes_summary() {
     assert_eq!(summary["songs"][1]["status"], "failed");
     assert_eq!(summary["songs"][0]["status"], "ok");
 }
+
+#[test]
+fn dry_run_without_overwrite_exits_one_on_collision() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
+    let outdir = dir.path().join("out");
+    std::fs::create_dir_all(&outdir).unwrap();
+    std::fs::write(outdir.join("01 - One.mp3"), b"old").unwrap();
+    jamsplit()
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--outdir")
+        .arg(&outdir)
+        .arg("--dry-run")
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("would overwrite existing file"))
+        .stderr(predicates::str::contains("--overwrite"));
+    // dry-run must not touch any files
+    assert_eq!(std::fs::read(outdir.join("01 - One.mp3")).unwrap(), b"old");
+    assert!(!outdir.join("02 - Two.mp3").exists());
+}
+
+#[test]
+fn dry_run_with_overwrite_shows_would_overwrite_label() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
+    let outdir = dir.path().join("out");
+    std::fs::create_dir_all(&outdir).unwrap();
+    std::fs::write(outdir.join("01 - One.mp3"), b"old").unwrap();
+    jamsplit()
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--outdir")
+        .arg(&outdir)
+        .arg("--dry-run")
+        .arg("--overwrite")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("(would overwrite)"));
+    // dry-run must not touch any files
+    assert_eq!(std::fs::read(outdir.join("01 - One.mp3")).unwrap(), b"old");
+}
