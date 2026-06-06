@@ -1,3 +1,4 @@
+pub mod audacity;
 pub mod plain;
 
 /// One normalized marker: where a song starts and what it is called.
