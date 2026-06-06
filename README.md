@@ -53,6 +53,9 @@ a binary directly — ffprobe must sit next to it.
 
 ## Marker formats
 
+For step-by-step instructions on creating marker files in Audacity, REAPER, or
+by hand, see [MARKERS.md](MARKERS.md).
+
 The format is auto-detected (announced on stderr); force one with
 `--format audacity|plain|reaper`.
 
