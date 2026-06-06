@@ -85,3 +85,113 @@ fn forced_format_is_respected() {
         .success()
         .stderr(predicates::str::contains("plain"));
 }
+
+#[test]
+fn split_dry_run_writes_nothing() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
+    let outdir = dir.path().join("out");
+    jamsplit()
+        .args(["split", "--audio"]).arg(&wav)
+        .arg("--markers").arg(&markers)
+        .arg("--outdir").arg(&outdir)
+        .arg("--dry-run")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("would"));
+    assert!(!outdir.exists(), "dry-run must not create the outdir");
+}
+
+#[test]
+fn split_produces_files_and_summary() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
+    let outdir = dir.path().join("out");
+    jamsplit()
+        .args(["split", "--audio"]).arg(&wav)
+        .arg("--markers").arg(&markers)
+        .arg("--outdir").arg(&outdir)
+        .args(["--album", "Practice"])
+        .assert()
+        .success();
+    assert!(outdir.join("01 - One.mp3").is_file());
+    assert!(outdir.join("02 - Two.mp3").is_file());
+    let summary: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(outdir.join("jamsplit-summary.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(summary["album"], "Practice");
+    assert_eq!(summary["songs"][0]["status"], "ok");
+}
+
+#[test]
+fn split_default_outdir_is_audio_stem() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n");
+    jamsplit()
+        .current_dir(dir.path())
+        .args(["split", "--audio"]).arg(&wav)
+        .arg("--markers").arg(&markers)
+        .assert()
+        .success();
+    assert!(dir.path().join("fixture").join("01 - One.mp3").is_file());
+}
+
+#[test]
+fn split_refuses_collisions_without_overwrite() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
+    let outdir = dir.path().join("out");
+    std::fs::create_dir_all(&outdir).unwrap();
+    std::fs::write(outdir.join("01 - One.mp3"), b"old").unwrap();
+    jamsplit()
+        .args(["split", "--audio"]).arg(&wav)
+        .arg("--markers").arg(&markers)
+        .arg("--outdir").arg(&outdir)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("01 - One.mp3"))
+        .stderr(predicates::str::contains("--overwrite"));
+    // the collision gate fires before ANY export happens
+    assert!(!outdir.join("02 - Two.mp3").exists());
+
+    jamsplit()
+        .args(["split", "--audio"]).arg(&wav)
+        .arg("--markers").arg(&markers)
+        .arg("--outdir").arg(&outdir)
+        .arg("--overwrite")
+        .assert()
+        .success();
+    assert!(outdir.join("02 - Two.mp3").is_file());
+}
+
+#[test]
+fn split_partial_failure_exits_two_and_still_writes_summary() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n3.0 Two\n6.5 Three\n");
+    let outdir = dir.path().join("out");
+    // occupy song 2's .part path with a directory to force a failure
+    std::fs::create_dir_all(outdir.join("02 - Two.mp3.part")).unwrap();
+    jamsplit()
+        .args(["split", "--audio"]).arg(&wav)
+        .arg("--markers").arg(&markers)
+        .arg("--outdir").arg(&outdir)
+        .assert()
+        .code(2);
+    let summary: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(outdir.join("jamsplit-summary.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(summary["songs"][1]["status"], "failed");
+    assert_eq!(summary["songs"][0]["status"], "ok");
+}

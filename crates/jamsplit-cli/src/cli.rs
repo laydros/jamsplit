@@ -1,10 +1,10 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{Args, Parser, Subcommand};
 use jamsplit_core::audio::{probe_audio, AudioInfo};
-use jamsplit_core::ffmpeg::FfmpegPaths;
+use jamsplit_core::ffmpeg::{export, CancelToken, ExportOptions, FfmpegPaths, SongStatus};
 use jamsplit_core::markers::{parse_markers, MarkerFormat, ParsedMarkers};
-use jamsplit_core::plan::{plan, SplitPlan};
-use jamsplit_core::report::render_table;
+use jamsplit_core::plan::{check_collisions, plan, SplitPlan};
+use jamsplit_core::report::{build_summary, render_table, write_summary};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -123,4 +123,73 @@ pub fn inspect(args: &CommonArgs) -> Result<()> {
     let loaded = load(args)?;
     print!("{}", render_table(&loaded.plan));
     Ok(())
+}
+
+/// Exit meaning: Ok(true) = all exports fine, Ok(false) = some failed (exit 2).
+pub fn split(args: &SplitArgs) -> Result<bool> {
+    let loaded = load(&args.common)?;
+    let outdir = args.outdir.clone().unwrap_or_else(|| {
+        PathBuf::from(
+            args.common.audio.file_stem().map(|s| s.to_os_string()).unwrap_or_else(|| "songs".into()),
+        )
+    });
+
+    if args.dry_run {
+        print!("{}", render_table(&loaded.plan));
+        if !outdir.exists() {
+            println!("would create directory: {}", outdir.display());
+        }
+        for song in &loaded.plan.songs {
+            let target = outdir.join(&song.filename);
+            let collides = if target.exists() { "  (would overwrite)" } else { "" };
+            println!("would write: {}{collides}", target.display());
+        }
+        return Ok(true);
+    }
+
+    if let Err(collisions) = check_collisions(&loaded.plan, &outdir, args.overwrite) {
+        for c in &collisions {
+            eprintln!("error: {c}");
+        }
+        eprintln!("pass --overwrite to replace existing files");
+        anyhow::bail!("refusing to overwrite {} existing file(s)", collisions.len());
+    }
+
+    let opts = ExportOptions {
+        outdir: outdir.clone(),
+        album: args.album.clone(),
+        artist: args.artist.clone(),
+        overwrite: args.overwrite,
+        cancel: CancelToken::new(),
+    };
+    let total = loaded.plan.songs.len();
+    let report = export(&loaded.plan, &loaded.ffmpeg, &opts, &mut |r| {
+        let outcome = match &r.status {
+            SongStatus::Ok => "ok".to_string(),
+            SongStatus::Failed { .. } => "FAILED".to_string(),
+            SongStatus::Skipped => "skipped".to_string(),
+        };
+        println!("[{}/{total}] {} ... {outcome}", r.track, r.file.display());
+    })?;
+
+    let summary = build_summary(
+        &loaded.plan,
+        &report,
+        &args.common.markers,
+        &loaded.parsed.format.to_string(),
+        args.album.as_deref(),
+        args.artist.as_deref(),
+    );
+    let summary_path = write_summary(&summary, &outdir)?;
+    println!("summary: {}", summary_path.display());
+
+    if report.any_failed() {
+        for r in &report.results {
+            if let SongStatus::Failed { stderr_tail } = &r.status {
+                eprintln!("error: song {} failed:\n{stderr_tail}", r.track);
+            }
+        }
+        return Ok(false);
+    }
+    Ok(true)
 }
