@@ -66,6 +66,12 @@ mod tests {
     }
 
     #[test]
+    fn label_containing_tab_is_preserved() {
+        let got = parse("5.0\t5.0\tA\tB\n").unwrap();
+        assert_eq!(got[0].title, "A\tB");
+    }
+
+    #[test]
     fn collects_errors_with_line_numbers() {
         let input = "5.0\t5.0\tFine\nnot\tnumbers\there\n9.0\n";
         let errs = parse(input).unwrap_err();
