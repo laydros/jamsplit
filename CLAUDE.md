@@ -8,12 +8,15 @@ jamsplit splits one long jam-session recording (usually a Zoom-recorder WAV) int
 
 ## Status (2026-06-06)
 
-M1 and M2 are done. The plan file `docs/superpowers/plans/2026-06-06-m2-egui-gui.md`
-is the historical record of M2 design decisions.
+All milestones are done; v0.1.0 is released. The plan files
+`docs/superpowers/plans/2026-06-06-m2-egui-gui.md` and
+`docs/superpowers/plans/2026-06-06-m3-release-packaging.md` are the historical
+records of the M2 and M3 design decisions. `RELEASING.md` is the release
+runbook; TODO.md tracks remaining polish and post-v1 candidates.
 
 - M1 - engine + CLI: done
 - M2 - egui GUI: done (2026-06-06)
-- M3 - release packaging CI (out of v1 scope, next)
+- M3 - release packaging CI: done (2026-06-06, v0.1.0 published)
 
 ## Source of truth
 
