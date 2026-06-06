@@ -27,7 +27,6 @@ None block shipping. The manual checklist run happened 2026-06-06: everything pa
 - README's GUI section doesn't state the default output location (next to the audio file — differs from the CLI's cwd-relative default).
 - `(ui.available_height() - 40.0)` can go negative in tiny windows (non-panicking, degenerate scroll area) — clamp with `.max(0.0)` if it ever bothers anyone.
 - `gen` field in `PreviewRequest` becomes a reserved keyword in edition 2024 (`r#gen` needed on edition migration).
-- eframe is pinned to 0.33.x (0.34 needs rustc 1.92 > toolchain 1.90); consider loosening `0.33.3` → `0.33` before M3 packaging.
 - `probe_audio` runs ffprobe with no subprocess timeout (core-owned, predates M2; same exposure as the CLI).
 
 ## Next milestone
