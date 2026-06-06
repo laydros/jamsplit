@@ -82,15 +82,17 @@ pub fn write_summary(summary: &Summary, outdir: &Path) -> std::io::Result<PathBu
 
 /// Human track table for inspect/dry-run/post-split output.
 pub fn render_table(plan: &SplitPlan) -> String {
-    let mut out = String::from("track  start      end        length     title\n");
+    let mut out =
+        String::from("track  start      end        length     title                filename\n");
     for song in &plan.songs {
         out.push_str(&format!(
-            "{:>4}   {:<10} {:<10} {:<10} {}\n",
+            "{:>4}   {:<10} {:<10} {:<10} {:<20} {}\n",
             song.track,
             fmt_time(song.start_seconds),
             fmt_time(song.end_seconds),
             fmt_time(song.end_seconds - song.start_seconds),
-            song.title
+            song.title,
+            song.filename
         ));
     }
     out
@@ -200,10 +202,7 @@ mod tests {
     fn table_lists_every_song_with_times() {
         let t = render_table(&test_plan());
         let expected = "\
-track  start      end        length     title
-   1   0:00.0     5:23.5     5:23.5     One
-   2   5:23.5     10:00.0    4:36.5     Two
-";
+track  start      end        length     title                filename\n   1   0:00.0     5:23.5     5:23.5     One                  01 - One.mp3\n   2   5:23.5     10:00.0    4:36.5     Two                  02 - Two.mp3\n";
         assert_eq!(t, expected);
     }
 }
