@@ -317,6 +317,13 @@ impl JamsplitApp {
 impl eframe::App for JamsplitApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.drain_messages();
+        egui::TopBottomPanel::bottom("footer").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("jamsplit {}", env!("CARGO_PKG_VERSION")));
+                ui.separator();
+                ui.hyperlink_to("Website", "https://laydros.github.io/jamsplit/");
+            });
+        });
         egui::CentralPanel::default().show(ctx, |ui| {
             self.ui_ffmpeg(ui, ctx);
             let exporting = matches!(self.state.phase, Phase::Exporting { .. });
