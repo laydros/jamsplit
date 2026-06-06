@@ -52,7 +52,7 @@ jobs:
       - name: Package
         shell: bash
         run: scripts/package.sh ${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bundle-${{ matrix.target }}
           path: dist/jamsplit-*
@@ -63,7 +63,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
