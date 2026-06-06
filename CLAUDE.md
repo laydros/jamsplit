@@ -8,7 +8,8 @@ jamsplit splits one long jam-session recording (usually a Zoom-recorder WAV) int
 
 ## Status (2026-06-06)
 
-All milestones are done; v0.1.0 is released. The plan files
+All milestones are done; v0.2.0 is released (Windows wgpu/WARP renderer
+fix over v0.1.0). The plan files
 `docs/superpowers/plans/2026-06-06-m2-egui-gui.md` and
 `docs/superpowers/plans/2026-06-06-m3-release-packaging.md` are the historical
 records of the M2 and M3 design decisions. `RELEASING.md` is the release

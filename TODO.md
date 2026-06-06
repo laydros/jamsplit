@@ -32,7 +32,8 @@ None block shipping. The manual checklist run happened 2026-06-06: everything pa
 ## Next milestone
 
 M3 is done; v0.1.0 was published 2026-06-06 (plan:
-`docs/superpowers/plans/2026-06-06-m3-release-packaging.md`).
+`docs/superpowers/plans/2026-06-06-m3-release-packaging.md`), followed the
+same day by v0.2.0 (Windows wgpu/WARP renderer fix, startup-error dialog).
 Remaining before v1.0:
 
 - Verify a real split from the Windows and Linux bundles on real machines
