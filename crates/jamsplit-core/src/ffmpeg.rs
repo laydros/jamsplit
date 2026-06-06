@@ -427,6 +427,12 @@ mod tests {
         assert!(!joined.iter().any(|a| a.starts_with("album=")));
     }
 
+    #[test]
+    fn last_lines_keeps_only_the_final_n() {
+        let stderr = "one\ntwo\nthree\nfour\nfive";
+        assert_eq!(last_lines(stderr, 3), "three\nfour\nfive");
+    }
+
     fn touch(dir: &Path, name: &str) -> PathBuf {
         let p = dir.join(exe(name));
         File::create(&p).unwrap();

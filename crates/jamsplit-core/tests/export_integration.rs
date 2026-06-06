@@ -83,13 +83,16 @@ fn full_split_files_durations_tags_progress() {
     assert!(!report.any_failed() && !report.canceled);
 
     let f1 = outdir.join("01 - AC_DC Jam.mp3"); // filename sanitized
+    let f2 = outdir.join("02 - Slow Blues.mp3");
     let f3 = outdir.join("03 - Untitled Song 3.mp3"); // blank title resolved
-    assert!(f1.is_file() && f3.is_file());
+    assert!(f1.is_file() && f2.is_file() && f3.is_file());
     assert!(!outdir.join("01 - AC_DC Jam.mp3.part").exists());
 
     let d1 = probe_audio(&ff, &f1).unwrap().duration_seconds;
+    let d2 = probe_audio(&ff, &f2).unwrap().duration_seconds;
     let d3 = probe_audio(&ff, &f3).unwrap().duration_seconds;
     assert!((d1 - 3.0).abs() < 0.1, "song 1 duration {d1}");
+    assert!((d2 - 3.5).abs() < 0.1, "song 2 duration {d2}");
     assert!((d3 - 3.5).abs() < 0.1, "song 3 duration {d3}");
 
     let tags = read_tags(&ff, &f1);

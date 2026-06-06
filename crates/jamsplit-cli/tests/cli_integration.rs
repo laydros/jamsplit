@@ -2,7 +2,6 @@ mod common;
 
 use assert_cmd::Command;
 use common::{ffmpeg_or_skip, make_wav};
-use predicates::prelude::*; // for .or() on predicates
 use std::path::Path;
 
 fn write_markers(dir: &Path, content: &str) -> std::path::PathBuf {
@@ -50,6 +49,8 @@ fn validate_duplicate_markers_exits_one() {
 
 #[test]
 fn validate_missing_audio_exits_one() {
+    // Gate on ffmpeg so a missing ffmpeg cannot be the reason for exit 1.
+    let Some(_ff) = ffmpeg_or_skip() else { return };
     let dir = tempfile::tempdir().unwrap();
     let markers = write_markers(dir.path(), "0:00 One\n");
     jamsplit()
@@ -57,7 +58,39 @@ fn validate_missing_audio_exits_one() {
         .arg(&markers)
         .assert()
         .code(1)
-        .stderr(predicates::str::contains("not found").or(predicates::str::contains("ffmpeg")));
+        .stderr(predicates::str::contains("audio file not found"));
+}
+
+#[test]
+fn ffmpeg_path_flag_is_how_ffmpeg_gets_found() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n");
+
+    // With PATH removed there is no fallback resolution...
+    jamsplit()
+        .env_remove("PATH")
+        .args(["validate", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("ffmpeg/ffprobe not found"));
+
+    // ...so success here can only come from --ffmpeg-path.
+    jamsplit()
+        .env_remove("PATH")
+        .args(["validate", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--ffmpeg-path")
+        .arg(&ff.ffmpeg)
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("OK"));
 }
 
 #[test]
@@ -172,6 +205,41 @@ fn split_produces_files_and_summary() {
     .unwrap();
     assert_eq!(summary["album"], "Practice");
     assert_eq!(summary["songs"][0]["status"], "ok");
+}
+
+#[test]
+fn split_artist_flag_reaches_the_mp3_tag() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n");
+    let outdir = dir.path().join("out");
+    jamsplit()
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--outdir")
+        .arg(&outdir)
+        .args(["--artist", "The Band"])
+        .assert()
+        .success();
+
+    let out = std::process::Command::new(&ff.ffprobe)
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "format_tags=artist",
+            "-of",
+            "json",
+        ])
+        .arg(outdir.join("01 - One.mp3"))
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["format"]["tags"]["artist"], "The Band");
 }
 
 #[test]
