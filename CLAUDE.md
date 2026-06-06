@@ -8,7 +8,10 @@ jamsplit splits one long jam-session recording (usually a Zoom-recorder WAV) int
 
 ## Status (2026-06-05)
 
-Design phase complete; no code yet. Next step is an implementation plan, then M1.
+Design and M1 implementation plan complete; no code yet. Next step: execute
+`docs/superpowers/plans/2026-06-05-jamsplit-m1-engine-cli.md` (task-by-task,
+per the plan header). The M2 GUI plan gets written after M1 lands, against
+the real core API.
 
 - M1 - engine + CLI (covers every acceptance criterion in the v1 spec)
 - M2 - egui GUI; nothing ships to users before M2 is done
