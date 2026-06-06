@@ -1,0 +1,22 @@
+Third-party software notice
+===========================
+
+This jamsplit bundle includes unmodified static builds of ffmpeg and
+ffprobe (https://ffmpeg.org), licensed under the GNU GPL version 2 or
+later with GPL v3 components enabled. See https://ffmpeg.org/legal.html.
+
+Build provenance:
+
+- Windows and Linux bundles: BtbN FFmpeg-Builds (GPL variant),
+  https://github.com/BtbN/FFmpeg-Builds
+  Build scripts and exact configuration are published in that repository;
+  the bundled build's version is printed by `ffmpeg -version`.
+- macOS bundles: OSXExperts.net static builds,
+  https://www.osxexperts.net
+
+Corresponding source code for ffmpeg is available at
+https://ffmpeg.org/download.html#get-sources (select the release matching
+`ffmpeg -version`).
+
+jamsplit itself is licensed under the GPL-3.0; see the bundled LICENSE
+file. jamsplit source: https://github.com/laydros/jamsplit
