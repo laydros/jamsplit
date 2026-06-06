@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>jamsplit - split jam recordings into songs</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #162032;
+      --muted: #596579;
+      --line: #d8dee9;
+      --paper: #f7f8fb;
+      --panel: #ffffff;
+      --accent: #1463ff;
+      --accent-dark: #0b45bd;
+      --good: #0f7b45;
+      --warn: #9b5d00;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.5;
+    }
+
+    a {
+      color: var(--accent-dark);
+    }
+
+    .wrap {
+      width: min(1080px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    header {
+      background: #101827;
+      color: #fff;
+      padding: 56px 0 44px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 44px;
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: 0;
+      font-size: 1.1rem;
+    }
+
+    .nav {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      font-size: 0.95rem;
+    }
+
+    .nav a {
+      color: #dbe7ff;
+      text-decoration: none;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 40px;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: clamp(2.4rem, 5vw, 4.6rem);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      margin: 0;
+      color: #d4def1;
+      font-size: 1.18rem;
+      max-width: 62ch;
+    }
+
+    .download-panel {
+      background: #fff;
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 22px;
+      box-shadow: 0 18px 54px rgba(0, 0, 0, 0.26);
+    }
+
+    .download-panel h2 {
+      margin-top: 0;
+    }
+
+    .download-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .download-button {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 48px;
+      padding: 12px 14px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 750;
+      text-decoration: none;
+    }
+
+    .download-button:hover {
+      background: var(--accent-dark);
+    }
+
+    .download-button small {
+      margin-left: 12px;
+      font-weight: 650;
+      opacity: 0.78;
+      overflow-wrap: anywhere;
+      text-align: right;
+    }
+
+    .release-note {
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    main {
+      padding: 34px 0 56px;
+    }
+
+    section {
+      margin: 28px 0;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 1.55rem;
+      line-height: 1.2;
+    }
+
+    h3 {
+      margin: 20px 0 8px;
+      font-size: 1.08rem;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+    }
+
+    .steps {
+      counter-reset: step;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .steps li {
+      counter-increment: step;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px 16px 14px 48px;
+      position: relative;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: #dbe7ff;
+      color: #123d91;
+      font-size: 0.85rem;
+      font-weight: 800;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .ok {
+      color: var(--good);
+      font-weight: 750;
+    }
+
+    .warn {
+      color: var(--warn);
+      font-weight: 750;
+    }
+
+    code,
+    pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    pre {
+      margin: 10px 0 0;
+      overflow-x: auto;
+      border-radius: 8px;
+      padding: 14px;
+      color: #edf3ff;
+      background: #111827;
+      font-size: 0.92rem;
+    }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 24px 0 34px;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    @media (max-width: 760px) {
+      header {
+        padding-top: 28px;
+      }
+
+      .topbar,
+      .hero {
+        display: block;
+      }
+
+      .nav {
+        margin-top: 14px;
+      }
+
+      .download-panel {
+        margin-top: 28px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="topbar">
+        <div class="brand">jamsplit</div>
+        <nav class="nav" aria-label="Page navigation">
+          <a href="#download">Download</a>
+          <a href="#markers">Make markers</a>
+          <a href="#use">Use the app</a>
+          <a href="https://github.com/laydros/jamsplit">GitHub</a>
+        </nav>
+      </div>
+
+      <div class="hero">
+        <div>
+          <h1>Split one long jam recording into song files.</h1>
+          <p class="lede">jamsplit takes a long WAV or other audio file plus a marker file from Audacity, REAPER, or a plain text list, then exports numbered MP3s like <code>01 - Opening Jam.mp3</code>.</p>
+        </div>
+
+        <aside class="download-panel" id="download" aria-label="Downloads">
+          <h2>Download</h2>
+          <div class="download-grid">
+            <a class="download-button" data-os="windows" href="https://github.com/laydros/jamsplit/releases/latest">
+              Windows <small>loading...</small>
+            </a>
+            <a class="download-button" data-os="macos" href="https://github.com/laydros/jamsplit/releases/latest">
+              macOS <small>loading...</small>
+            </a>
+            <a class="download-button" data-os="linux" href="https://github.com/laydros/jamsplit/releases/latest">
+              Linux <small>loading...</small>
+            </a>
+          </div>
+          <p class="release-note" id="release-note">Looking up the latest release. If the buttons do not update, open <a href="https://github.com/laydros/jamsplit/releases/latest">the latest release</a>.</p>
+        </aside>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>Before You Start</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>1. Get ffmpeg</h3>
+          <p>jamsplit uses ffmpeg and ffprobe to read audio and write MP3s.</p>
+          <p class="note">If the app cannot find ffmpeg, use <strong>Locate ffmpeg...</strong>. ffprobe needs to be next to it.</p>
+        </div>
+        <div class="card">
+          <h3>2. Make a marker file</h3>
+          <p>Markers are song starts. The next marker becomes the end of the current song.</p>
+          <p class="note">Add a <code>0:00</code> marker if the first song starts at the beginning.</p>
+        </div>
+        <div class="card">
+          <h3>3. Split</h3>
+          <p>Pick the recording, pick the marker file, check the preview table, then click <strong>Split</strong>.</p>
+          <p class="note">Existing MP3s are not overwritten unless you choose that option.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="markers">
+      <h2>Make Markers</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Audacity</h3>
+          <ol>
+            <li>Open the long recording in Audacity.</li>
+            <li>Click the start of a song.</li>
+            <li>Use <strong>Edit > Labels > Add Label at Selection</strong>, or press <strong>Ctrl+B</strong>.</li>
+            <li>Type the song title.</li>
+            <li>Repeat for every song start.</li>
+            <li>Use <strong>File > Export Other > Export Labels</strong>.</li>
+          </ol>
+          <p class="note">Use the exported <code>.txt</code> file as the jamsplit marker file.</p>
+        </div>
+
+        <div class="card">
+          <h3>REAPER</h3>
+          <ol>
+            <li>Set the project time display to minutes and seconds.</li>
+            <li>Add a marker at each song start, or create one region per song.</li>
+            <li>Name each marker or region with the song title.</li>
+            <li>Open <strong>View > Region/Marker Manager</strong>.</li>
+            <li>Export the markers or regions to a <code>.csv</code> file.</li>
+          </ol>
+          <p class="note">jamsplit uses marker or region starts. Region ends are ignored.</p>
+        </div>
+
+        <div class="card">
+          <h3>Plain Text</h3>
+          <p>Make a text file with one start time and title per line.</p>
+          <pre><code>0:00 Opening Jam
+05:23 - Slow Blues
+1:02:11 Closer</code></pre>
+          <p class="note">Accepted times include <code>M:SS</code>, <code>H:MM:SS</code>, and raw seconds.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="use">
+      <h2>Use The App</h2>
+      <ol class="steps">
+        <li>Extract the download and run <strong>jamsplit-gui</strong>. On macOS, you may need to right-click and choose <strong>Open</strong> the first time.</li>
+        <li>Choose the audio file. WAV from a Zoom recorder is the normal case, but anything ffprobe can read is accepted.</li>
+        <li>Choose the marker file from Audacity, REAPER, or your plain text list.</li>
+        <li>Leave the format on <strong>auto</strong> unless you need to force <strong>audacity</strong>, <strong>reaper</strong>, or <strong>plain</strong>.</li>
+        <li>Optional: fill in album and artist tags, and choose an output folder.</li>
+        <li>Check the preview table. If it looks right, click <strong>Split</strong>.</li>
+      </ol>
+      <p class="note">Output files are numbered in marker order: <code>01 - Song Title.mp3</code>, <code>02 - Song Title.mp3</code>, and so on. jamsplit also writes a <code>jamsplit-summary.json</code> file in the output folder.</p>
+    </section>
+
+    <section>
+      <h2>ffmpeg Install Hints</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Windows</h3>
+          <p>Install ffmpeg with winget:</p>
+          <pre><code>winget install Gyan.FFmpeg</code></pre>
+        </div>
+        <div class="card">
+          <h3>macOS</h3>
+          <p>Install ffmpeg with Homebrew:</p>
+          <pre><code>brew install ffmpeg</code></pre>
+        </div>
+        <div class="card">
+          <h3>Linux</h3>
+          <p>Install ffmpeg with your package manager, for example:</p>
+          <pre><code>sudo apt install ffmpeg</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>CLI Option</h2>
+      <p>You do not need the command line for normal use, but it is available.</p>
+      <pre><code>jamsplit inspect --audio jam.wav --markers songs.txt
+jamsplit split --audio jam.wav --markers songs.txt --album "Practice 2026-06-05"</code></pre>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      GPL-3.0. Source, issues, and release notes are on <a href="https://github.com/laydros/jamsplit">GitHub</a>.
+    </div>
+  </footer>
+
+  <script>
+    const latestReleaseApi = "https://api.github.com/repos/laydros/jamsplit/releases/latest";
+    const latestReleasePage = "https://github.com/laydros/jamsplit/releases/latest";
+    const buttons = Array.from(document.querySelectorAll("[data-os]"));
+    const releaseNote = document.querySelector("#release-note");
+
+    const matchers = {
+      windows: [/windows/i, /win64/i, /win32/i, /\.exe$/i, /\.msi$/i],
+      macos: [/macos/i, /darwin/i, /apple/i, /osx/i],
+      linux: [/linux/i, /appimage/i, /unknown-linux/i]
+    };
+
+    function bestAsset(assets, os) {
+      const candidates = assets.filter((asset) => matchers[os].some((rx) => rx.test(asset.name)));
+      return candidates.find((asset) => /gui|desktop|app/i.test(asset.name))
+        || candidates.find((asset) => !/cli|source/i.test(asset.name))
+        || candidates[0];
+    }
+
+    function setFallback(button) {
+      button.href = latestReleasePage;
+      button.querySelector("small").textContent = "all releases";
+    }
+
+    fetch(latestReleaseApi)
+      .then((response) => {
+        if (!response.ok) throw new Error("release lookup failed");
+        return response.json();
+      })
+      .then((release) => {
+        buttons.forEach((button) => {
+          const asset = bestAsset(release.assets || [], button.dataset.os);
+          if (!asset) {
+            setFallback(button);
+            return;
+          }
+
+          button.href = asset.browser_download_url;
+          button.querySelector("small").textContent = asset.name;
+        });
+
+        const version = release.tag_name || release.name || "latest release";
+        releaseNote.innerHTML = `Showing ${version}. Need another build? Open <a href="${latestReleasePage}">all release files</a>.`;
+      })
+      .catch(() => {
+        buttons.forEach(setFallback);
+        releaseNote.innerHTML = `Could not look up release assets. Open <a href="${latestReleasePage}">the latest release</a>.`;
+      });
+  </script>
+</body>
+</html>
