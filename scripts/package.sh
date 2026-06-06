@@ -56,7 +56,9 @@ EOF
   windows-x86_64)
     cp target/release/jamsplit.exe target/release/jamsplit-gui.exe "$stage/"
     cp "$side/ffmpeg.exe" "$side/ffprobe.exe" "$stage/"
-    (cd dist && 7z a -tzip "$name.zip" "$name" >/dev/null)
+    # 7z a updates an existing archive in place; remove first so re-runs
+    # can never carry stale entries.
+    (cd dist && rm -f "$name.zip" && 7z a -tzip "$name.zip" "$name" >/dev/null)
     ;;
   *)
     echo "unknown target: $target" >&2; exit 1 ;;
