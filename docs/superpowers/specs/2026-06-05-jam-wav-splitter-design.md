@@ -60,7 +60,7 @@ plan(markers, audio, opts) -> Result<SplitPlan, ValidationReport>   // Ok still 
 export(plan, opts, on_progress: impl FnMut(&SongResult)) -> ExportReport
 ```
 
-`export()` reports progress through a callback — the CLI prints from it, the GUI drives a progress bar from it. Core never prints.
+`export()` reports progress through a callback — the CLI prints from it, the GUI drives a progress bar from it. Core never prints. Cancellation is also core's job: `ExportOptions` carries a `CancelToken` (shared atomic flag), checked between songs and polled (~100 ms) while waiting on the running child. On cancel, the current ffmpeg child is killed, its `.part` removed, and the remaining songs are marked skipped in the report. The GUI's Cancel button sets the token; the CLI passes one that is never set.
 
 Times are `f64` seconds throughout. Core dependencies kept minimal: `serde`/`serde_json` (summary, ffprobe output), `thiserror`, `csv` (Reaper quoting only). CLI adds `clap` + `anyhow`; GUI adds `eframe`/`egui` + `rfd`. No async runtime, no regex, no audio crates.
 
@@ -85,13 +85,14 @@ Behavior:
 - `--outdir` defaults to `./<audio-file-stem>/`, created (with parents) if missing.
 - Existing target files are collected during planning and reported as one error listing every collision, before anything is written, unless `--overwrite`.
 - Exit codes: `0` success (warnings allowed), `1` invalid input/markers, `2` one or more exports failed. Results and tables on stdout; warnings and errors on stderr.
-- Any input ffprobe can read is accepted — WAV is the expected and tested path, but a FLAC showing up should just work.
+- Any input ffprobe can read is accepted. Lossless inputs (WAV, FLAC, ALAC) are the supported, sample-accurate path — input-side `-ss` with transcode is exact when timestamps are trustworthy. Lossy inputs (MP3, AAC) still work but emit a warning that split points may be approximate, because their seek/timestamp tables aren't always reliable (e.g. VBR MP3 without a Xing header).
 
 ### Filenames and tags
 
 - Filename: `NN - Title.mp3`. `NN` is the 1-based track number zero-padded to `max(2, digits(song_count))`.
 - Sanitization (filenames only): replace `/ \ : * ? " < > |` and ASCII control characters with `_` (union of all-OS rules — these files get shared across platforms), collapse consecutive `_`, trim leading dots and trailing dots/spaces. A title that sanitizes to nothing falls back to `Untitled Song N`.
 - Tags carry the **original, unsanitized** title: `title`, `track` = `N/total`, plus `album` and `artist` when given.
+- Within-run path collisions are impossible by construction: the track-number prefix is unique per song and identically padded, so identical sanitized titles (or multiple `Untitled Song N` fallbacks) still produce distinct filenames, and `.part` paths inherit that uniqueness. The collision check against *existing* files covers the final `.mp3` paths; stale `.part` files left behind by an interrupted run are not collisions — they are overwritten freely, since a `.part` is never finished output.
 
 ### ffmpeg invocation (per song)
 
@@ -130,7 +131,7 @@ All parsers normalize to `RawMarker { start_seconds: f64, title: String }` (titl
 
 ### Auto-detection
 
-Order: Audacity (strict `float TAB float` line shape) → Reaper (CSV header signature) → plain (fallback). Ordering matters: an Audacity file would mis-parse as plain, so it is checked first; a plain file cannot accidentally match Audacity's two-float shape. `--format` (CLI) or the format dropdown (GUI) overrides detection.
+Order: Audacity (strict `float TAB float` line shape, every non-blank line) → Reaper (CSV header signature) → plain (fallback). The ordering is a deliberate tiebreak: every Audacity file is also *parseable* as plain (plain accepts any rest-of-line as a title), so the strict shape must be tested first. The converse edge case exists and is accepted: a hand-written plain file using tab separators whose titles parse as bare floats (`12<TAB>34`) is genuinely indistinguishable from Audacity labels and will be detected as Audacity. Mitigation: detection results are always announced, and `--format plain` overrides. An ambiguity *error* was considered and rejected — because Audacity files always also parse as plain, it would fire on every genuine Audacity export.
 
 ## Validation rules (all in `plan()`)
 
@@ -154,13 +155,13 @@ Single window, eframe/egui with rfd native file dialogs.
 
 - **Inputs:** audio picker, markers picker, format dropdown (auto + three formats), album/artist text fields, outdir picker (same `<audio-stem>/` default), overwrite checkbox.
 - **Live preview:** any input change re-runs `parse → probe → plan` on a worker thread (results back over an mpsc channel + repaint request — the UI thread never blocks). Shows the track table, detected format, warnings (yellow), and errors (red). The GUI is inherently the dry-run: you see the full plan before committing.
-- **States:** Idle → Preview (Split disabled while errors exist) → Exporting (per-song progress bar via `export()`'s callback; Cancel kills the current ffmpeg child and removes its `.part`) → Done (summary + "Open output folder") / Failed.
+- **States:** Idle → Preview (Split disabled while errors exist) → Exporting (per-song progress bar via `export()`'s callback; Cancel sets the core `CancelToken`, which kills the current ffmpeg child and removes its `.part`) → Done (summary + "Open output folder") / Failed / Canceled (completed songs kept, summary still written).
 - The state machine lives in a plain struct, testable without egui. `#![windows_subsystem = "windows"]` keeps Windows from opening a console. Writes the same `jamsplit-summary.json`.
 - egui apps look like egui, not native widgets — accepted for this tool. No waveform, no playback: file pickers and a table.
 
 ## Summary log
 
-`jamsplit-summary.json`, written into the outdir after a real split (never on dry-run), plus a human table on stdout (CLI) or in the window (GUI). Fields: source audio path, markers path, detected/forced format, album/artist, tool version, per-song entries (track, title, start, end, duration, output file, status, error excerpt if failed), and all warnings.
+`jamsplit-summary.json`, written into the outdir after a real split (never on dry-run), plus a human table on stdout (CLI) or in the window (GUI). The summary is written even when the run partially fails (exit `2`) or is canceled — failed songs carry their status and stderr excerpt, skipped songs are marked skipped. Fields: source audio path, markers path, detected/forced format, album/artist, tool version, per-song entries (track, title, start, end, duration, output file, status, error excerpt if failed), and all warnings.
 
 ## Error handling
 
