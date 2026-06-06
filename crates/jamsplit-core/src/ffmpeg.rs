@@ -216,7 +216,7 @@ pub fn export(
         }
 
         let part = part_path(opts, song);
-        let status = match run_one(ffmpeg, &plan.audio.path, song, total, opts, &part) {
+        let status = match run_one(ffmpeg, &plan.audio.path, song, total, opts) {
             RunOutcome::Done => {
                 // Windows cannot rename over an existing file
                 if opts.overwrite && target.exists() {
@@ -269,7 +269,6 @@ fn run_one(
     song: &crate::plan::Song,
     total: usize,
     opts: &ExportOptions,
-    _part: &Path,
 ) -> RunOutcome {
     use std::io::Read;
 
