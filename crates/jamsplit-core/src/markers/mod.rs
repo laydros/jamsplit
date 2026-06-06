@@ -75,6 +75,85 @@ pub fn parse_timestamp(s: &str) -> Result<f64, String> {
     Ok(total)
 }
 
+/// Which marker format a file is in. `FromStr` accepts the CLI names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkerFormat {
+    Audacity,
+    Plain,
+    Reaper,
+}
+
+impl std::str::FromStr for MarkerFormat {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "audacity" => Ok(Self::Audacity),
+            "plain" => Ok(Self::Plain),
+            "reaper" => Ok(Self::Reaper),
+            other => Err(format!("unknown format '{other}' (expected audacity, plain, or reaper)")),
+        }
+    }
+}
+
+impl std::fmt::Display for MarkerFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Audacity => "audacity",
+            Self::Plain => "plain",
+            Self::Reaper => "reaper",
+        })
+    }
+}
+
+/// Markers plus the format they were read as (so frontends can announce it).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParsedMarkers {
+    pub markers: Vec<RawMarker>,
+    pub format: MarkerFormat,
+}
+
+/// Detect the marker format. Order is a deliberate tiebreak — every Audacity
+/// file also parses as plain, so the strict shape is tested first.
+pub fn detect_format(content: &str) -> MarkerFormat {
+    // Audacity: every non-blank, non-spectral line is float TAB float [TAB ...]
+    let mut saw_audacity_line = false;
+    let all_audacity = content
+        .lines()
+        .filter(|l| !l.trim().is_empty() && !l.starts_with('\\'))
+        .all(|l| {
+            let fields: Vec<&str> = l.split('\t').collect();
+            let ok = fields.len() >= 2
+                && fields[0].trim().parse::<f64>().is_ok()
+                && fields[1].trim().parse::<f64>().is_ok();
+            saw_audacity_line |= ok;
+            ok
+        });
+    if all_audacity && saw_audacity_line {
+        return MarkerFormat::Audacity;
+    }
+    // Reaper: header row signature
+    if let Some(first) = content.lines().find(|l| !l.trim().is_empty()) {
+        if first.trim().to_ascii_lowercase().starts_with("#,name,start") {
+            return MarkerFormat::Reaper;
+        }
+    }
+    MarkerFormat::Plain
+}
+
+/// Parse markers, auto-detecting the format unless one is forced.
+pub fn parse_markers(
+    content: &str,
+    format: Option<MarkerFormat>,
+) -> Result<ParsedMarkers, Vec<ParseError>> {
+    let format = format.unwrap_or_else(|| detect_format(content));
+    let markers = match format {
+        MarkerFormat::Audacity => audacity::parse(content)?,
+        MarkerFormat::Plain => plain::parse(content)?,
+        MarkerFormat::Reaper => reaper::parse(content)?,
+    };
+    Ok(ParsedMarkers { markers, format })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -137,5 +216,45 @@ mod tests {
         // bare-dot fraction forms
         assert!(parse_timestamp(".5").is_err());
         assert!(parse_timestamp("5.").is_err());
+    }
+
+    #[test]
+    fn detects_audacity_shape() {
+        assert_eq!(detect_format("1.0\t1.0\tIntro\n2.0\t3.0\n"), MarkerFormat::Audacity);
+    }
+
+    #[test]
+    fn detection_skips_spectral_lines_like_the_parser_does() {
+        let input = "1.0\t1.0\tChorus\n\\\t440.0\t880.0\n2.0\t2.0\tOutro\n";
+        assert_eq!(detect_format(input), MarkerFormat::Audacity);
+    }
+
+    #[test]
+    fn detects_reaper_header() {
+        assert_eq!(detect_format("#,Name,Start,End,Length\nM1,Song,0:00,,\n"), MarkerFormat::Reaper);
+    }
+
+    #[test]
+    fn falls_back_to_plain() {
+        assert_eq!(detect_format("0:00 Opening Jam\n5:23 Slow Blues\n"), MarkerFormat::Plain);
+        // mixed shapes are not Audacity
+        assert_eq!(detect_format("1.0\t2.0\tA\n0:00 B\n"), MarkerFormat::Plain);
+        assert_eq!(detect_format(""), MarkerFormat::Plain);
+    }
+
+    #[test]
+    fn forced_format_skips_detection() {
+        // looks like Audacity, but we force plain: first float is the time,
+        // rest of line (including the tab) is the title
+        let got = parse_markers("1.5\t2.5\tA\n", Some(MarkerFormat::Plain)).unwrap();
+        assert_eq!(got.format, MarkerFormat::Plain);
+        assert_eq!(got.markers[0].title, "2.5\tA");
+    }
+
+    #[test]
+    fn parse_markers_reports_detected_format() {
+        let got = parse_markers("0:00 One\n", None).unwrap();
+        assert_eq!(got.format, MarkerFormat::Plain);
+        assert_eq!(got.markers.len(), 1);
     }
 }
