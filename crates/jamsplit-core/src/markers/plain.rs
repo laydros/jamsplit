@@ -11,19 +11,24 @@ pub fn parse(content: &str) -> Result<Vec<RawMarker>, Vec<ParseError>> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        // first whitespace-delimited token is the time; the rest is the title
-        let (time_str, rest) = match line.split_once(|c: char| c.is_whitespace()) {
+        // the time runs up to the first separator (whitespace or '-');
+        // the rest of the line is the title
+        let (time_str, rest) = match line.split_once(|c: char| c.is_whitespace() || c == '-') {
             Some((t, r)) => (t, r),
             None => (line, ""),
         };
+        let sep_is_dash = line[time_str.len()..].starts_with('-');
         match super::parse_timestamp(time_str) {
             Ok(start_seconds) => {
                 let mut title = rest.trim();
-                // a leading "- " is a separator, stripped exactly once
-                if let Some(stripped) = title.strip_prefix("- ") {
-                    title = stripped.trim_start();
-                } else if title == "-" {
-                    title = "";
+                // after a whitespace separator, a leading "- " is itself a
+                // separator, stripped exactly once
+                if !sep_is_dash {
+                    if let Some(stripped) = title.strip_prefix("- ") {
+                        title = stripped.trim_start();
+                    } else if title == "-" {
+                        title = "";
+                    }
                 }
                 markers.push(RawMarker {
                     start_seconds,
@@ -80,6 +85,13 @@ mod tests {
     fn title_may_be_empty() {
         let got = parse("0:00\n1:00 Two\n").unwrap();
         assert_eq!(got[0], marker(0.0, ""));
+    }
+
+    #[test]
+    fn dash_separator_needs_no_surrounding_space() {
+        let got = parse("0:00-Slow Blues\n5:00- Another\n").unwrap();
+        assert_eq!(got[0], marker(0.0, "Slow Blues"));
+        assert_eq!(got[1], marker(300.0, "Another"));
     }
 
     #[test]

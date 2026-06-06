@@ -310,27 +310,40 @@ fn run_one(
         Err(e) => return RunOutcome::Failed(format!("could not start ffmpeg: {e}")),
     };
 
+    // Drain stderr on a background thread while we poll: a child that writes
+    // more than the OS pipe buffer would otherwise block mid-write and never
+    // exit. The thread sees EOF once the child dies, so joining cannot hang.
+    // read_to_end + from_utf8_lossy so non-UTF8 bytes (e.g. Windows paths
+    // with non-ASCII characters) never cause a silent empty capture.
+    let stderr_pipe = child.stderr.take();
+    let drain = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(mut pipe) = stderr_pipe {
+            let _ = pipe.read_to_end(&mut buf);
+        }
+        buf
+    });
+
     let exit = loop {
         if opts.cancel.is_canceled() {
             let _ = child.kill();
             let _ = child.wait();
+            let _ = drain.join();
             return RunOutcome::Canceled;
         }
         match child.try_wait() {
             Ok(Some(status)) => break status,
             Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
-            Err(e) => return RunOutcome::Failed(format!("waiting on ffmpeg failed: {e}")),
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = drain.join();
+                return RunOutcome::Failed(format!("waiting on ffmpeg failed: {e}"));
+            }
         }
     };
 
-    // -v error keeps stderr tiny, so reading after exit cannot deadlock on a
-    // full pipe (it fits in the OS pipe buffer).
-    // Use read_to_end + from_utf8_lossy so non-UTF8 bytes (e.g. Windows paths
-    // with non-ASCII characters) never cause a silent empty capture.
-    let mut stderr_bytes = Vec::new();
-    if let Some(mut pipe) = child.stderr.take() {
-        let _ = pipe.read_to_end(&mut stderr_bytes);
-    }
+    let stderr_bytes = drain.join().unwrap_or_default();
     let stderr = String::from_utf8_lossy(&stderr_bytes);
 
     if exit.success() {

@@ -170,6 +170,73 @@ fn overwrite_true_replaces_existing_outputs() {
     assert!(outdir.join("01 - One.mp3").is_file());
 }
 
+#[cfg(unix)]
+#[test]
+fn chatty_ffmpeg_stderr_does_not_deadlock_export() {
+    use std::os::unix::fs::PermissionsExt;
+    // No real ffmpeg needed: a fake one floods stderr far past any OS pipe
+    // buffer, then fails. If export only read stderr after exit, the child
+    // would block writing and export would never return.
+    let dir = tempfile::tempdir().unwrap();
+    let fake = dir.path().join("ffmpeg");
+    std::fs::write(
+        &fake,
+        "#!/bin/sh\nawk 'BEGIN { for (i = 1; i <= 20000; i++) print \"stderr line\", i }' 1>&2\nexit 1\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let ff = jamsplit_core::ffmpeg::FfmpegPaths {
+        ffmpeg: fake,
+        ffprobe: dir.path().join("ffprobe"), // unused by export
+    };
+
+    let p = jamsplit_core::plan::SplitPlan {
+        songs: vec![jamsplit_core::plan::Song {
+            track: 1,
+            title: "One".to_string(),
+            filename: "01 - One.mp3".to_string(),
+            start_seconds: 0.0,
+            end_seconds: 5.0,
+            to_eof: false,
+        }],
+        audio: jamsplit_core::audio::AudioInfo {
+            path: dir.path().join("fixture.wav"),
+            duration_seconds: 5.0,
+            codec_name: "pcm_s16le".to_string(),
+            lossless: true,
+        },
+        warnings: vec![],
+    };
+    let o = ExportOptions {
+        outdir: dir.path().join("out"),
+        album: None,
+        artist: None,
+        overwrite: false,
+        cancel: CancelToken::new(),
+    };
+
+    let handle = std::thread::spawn(move || export(&p, &ff, &o, &mut |_| {}));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !handle.is_finished() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "export deadlocked: stderr pipe filled before child exit"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    let report = handle.join().unwrap().unwrap();
+
+    let SongStatus::Failed { stderr_tail } = &report.results[0].status else {
+        panic!("expected a failed song, got {:?}", report.results[0].status);
+    };
+    assert!(
+        stderr_tail.ends_with("stderr line 20000"),
+        "tail should keep the child's final line, got: {:?}",
+        &stderr_tail[stderr_tail.len().saturating_sub(80)..]
+    );
+    assert_eq!(stderr_tail.lines().count(), 15);
+}
+
 #[test]
 fn cancel_mid_song_kills_ffmpeg_and_removes_part() {
     let Some(ff) = ffmpeg_or_skip() else { return };
