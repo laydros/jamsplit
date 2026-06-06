@@ -202,12 +202,16 @@ impl AppState {
     }
 
     /// Worker result arrived. Discarded unless it answers the latest request.
+    /// Collisions are recomputed against the CURRENT outdir/overwrite: the
+    /// user may have changed them while this result was in flight (those
+    /// edits don't bump the generation — they don't need a re-probe).
     pub fn on_preview(&mut self, gen: u64, outcome: PreviewOutcome) {
         if gen != self.next_gen {
             return;
         }
         self.preview_pending = false;
         self.preview = Some(outcome);
+        self.recheck_collisions();
     }
 
     /// The Split button's single gate: a settled, clean preview.
@@ -341,14 +345,31 @@ mod tests {
 
     #[test]
     fn can_split_requires_clean_plan() {
-        let mut state = ready_state();
+        // Use a real tempdir so collision checks against the filesystem work.
+        let dir = tempfile::tempdir().unwrap();
+        let audio = dir.path().join("jam.wav");
+        let outdir = dir.path().join("jam");
+        std::fs::create_dir_all(&outdir).unwrap();
+        std::fs::write(outdir.join("01 - Opener.mp3"), b"x").unwrap();
+
+        let mut state = AppState::new(Ok(fake_ffmpeg()));
+        state.inputs.audio = Some(audio.clone());
+        state.inputs.markers = Some(dir.path().join("songs.txt"));
+
         assert!(!state.can_split()); // no preview yet
 
         let gen = state.request_preview().unwrap().gen;
         assert!(!state.can_split()); // pending
 
-        let plan = two_song_plan(PathBuf::from("/recordings/jam.wav"));
+        let plan = two_song_plan(audio.clone());
         state.on_preview(gen, outcome_with_plan(plan.clone()));
+        // Default outdir is <audio dir>/<audio stem>/ = <dir>/jam, which has
+        // 01 - Opener.mp3 — recheck_collisions fires and finds it.
+        assert!(!state.can_split());
+
+        // Switch to a clean outdir so can_split becomes true.
+        state.inputs.outdir = Some(dir.path().join("clean"));
+        state.recheck_collisions();
         assert!(state.can_split());
 
         let gen = state.request_preview().unwrap().gen;
@@ -357,12 +378,11 @@ mod tests {
         state.on_preview(gen, bad);
         assert!(!state.can_split());
 
+        // Collisions from a real path: switch back to the colliding outdir.
+        state.inputs.outdir = Some(outdir.clone());
         let gen = state.request_preview().unwrap().gen;
-        let mut colliding = outcome_with_plan(plan);
-        colliding
-            .collisions
-            .push("would overwrite existing file".to_string());
-        state.on_preview(gen, colliding);
+        state.on_preview(gen, outcome_with_plan(two_song_plan(audio)));
+        // recheck_collisions fires in on_preview and finds the real collision.
         assert!(!state.can_split());
     }
 
@@ -553,6 +573,41 @@ mod tests {
         assert!(state.preview_pending);
         let second = state.request_preview().unwrap();
         assert!(second.gen > first.gen);
+    }
+
+    #[test]
+    fn preview_landing_reconciles_collisions_with_current_inputs() {
+        let dir = tempfile::tempdir().unwrap();
+        let audio = dir.path().join("jam.wav");
+        let colliding = dir.path().join("colliding");
+        std::fs::create_dir_all(&colliding).unwrap();
+        std::fs::write(colliding.join("01 - Opener.mp3"), b"x").unwrap();
+
+        let mut state = AppState::new(Ok(fake_ffmpeg()));
+        state.inputs.audio = Some(audio.clone());
+        state.inputs.markers = Some(dir.path().join("songs.txt"));
+        let gen = state.request_preview().unwrap().gen;
+
+        // While the preview is in flight, the user picks an outdir that
+        // already contains a target file. The worker's result was computed
+        // against the old outdir and reports no collisions.
+        state.inputs.outdir = Some(colliding.clone());
+        state.recheck_collisions(); // no-op: no preview stored yet
+        state.on_preview(gen, outcome_with_plan(two_song_plan(audio)));
+
+        assert_eq!(state.preview.as_ref().unwrap().collisions.len(), 1);
+        assert!(!state.can_split());
+
+        // And the reverse: worker reported a collision for the old outdir,
+        // but the user switched to a clean one before the result landed.
+        let gen = state.request_preview().unwrap().gen;
+        state.inputs.outdir = Some(dir.path().join("clean"));
+        let mut outcome = outcome_with_plan(two_song_plan(state.inputs.audio.clone().unwrap()));
+        outcome.collisions.push("stale collision from old outdir".to_string());
+        state.on_preview(gen, outcome);
+
+        assert!(state.preview.as_ref().unwrap().collisions.is_empty());
+        assert!(state.can_split());
     }
 
     #[test]
