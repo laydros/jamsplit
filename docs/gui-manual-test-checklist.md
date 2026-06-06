@@ -12,6 +12,9 @@ markers `/tmp/songs.txt`: `0:00 One` / `0:12 Two` / `0:21 Three`.
 ## ffmpeg resolution
 
 - [x] With ffmpeg on PATH: no ffmpeg error or picker is visible.
+- [ ] With ffmpeg found: the footer shows `ffmpeg: <path>` after the version
+  and Website link; a long path elides instead of widening the window, and
+  hovering shows the full path.
 - [x] `cargo build -p jamsplit-gui && env PATH="" ./target/debug/jamsplit-gui`:
   the install-hint error and "Locate ffmpeg…" button appear; picking a real
   ffmpeg binary clears the error and preview works.
