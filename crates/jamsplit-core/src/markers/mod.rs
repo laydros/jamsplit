@@ -1,5 +1,6 @@
 pub mod audacity;
 pub mod plain;
+pub mod reaper;
 
 /// One normalized marker: where a song starts and what it is called.
 #[derive(Debug, Clone, PartialEq)]
