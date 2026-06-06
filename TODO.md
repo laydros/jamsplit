@@ -8,7 +8,7 @@ Deferred items from the M1 final review (2026-06-06). None block M2.
 
 ## Deferred from the M2 final review (2026-06-06)
 
-None block shipping; the manual checklist run is the only gate left for handing the tool out.
+None block shipping. The manual checklist run happened 2026-06-06: everything passes on macOS; the Windows no-console check is the one unchecked item (needs a Windows box, fold into M3 packaging).
 
 ### Tests (worker/core level — the design doc's no-UI-tests rule doesn't apply)
 
@@ -25,7 +25,6 @@ None block shipping; the manual checklist run is the only gate left for handing 
 - `Msg::Song`/`Msg::ExportDone` carry no generation tag; cross-run safety rests on an undocumented ExportDone-is-terminal + Done-barrier invariant. Document it (or tag the messages) before any change to the export flow.
 - Superseded preview threads accumulate under rapid input edits (each edit spawns a full parse+probe pipeline; only the newest result is kept). Wasteful, not incorrect.
 - README's GUI section doesn't state the default output location (next to the audio file — differs from the CLI's cwd-relative default).
-- Checklist fixture command lacks `-y`, so it fails on re-run if `/tmp/jam.wav` exists.
 - `(ui.available_height() - 40.0)` can go negative in tiny windows (non-panicking, degenerate scroll area) — clamp with `.max(0.0)` if it ever bothers anyone.
 - `gen` field in `PreviewRequest` becomes a reserved keyword in edition 2024 (`r#gen` needed on edition migration).
 - eframe is pinned to 0.33.x (0.34 needs rustc 1.92 > toolchain 1.90); consider loosening `0.33.3` → `0.33` before M3 packaging.

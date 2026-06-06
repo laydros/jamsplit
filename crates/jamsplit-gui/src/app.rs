@@ -53,7 +53,7 @@ impl JamsplitApp {
         let Err(message) = self.state.ffmpeg.clone() else {
             return;
         };
-        ui.colored_label(egui::Color32::LIGHT_RED, message);
+        error_label(ui, message);
         if ui.button("Locate ffmpeg…").clicked() {
             if let Some(path) = rfd::FileDialog::new()
                 .set_title("Select the ffmpeg binary (ffprobe must sit next to it)")
@@ -71,7 +71,7 @@ impl JamsplitApp {
         let mut collisions_dirty = false;
 
         egui::Grid::new("inputs").num_columns(3).show(ui, |ui| {
-            ui.label("Audio:");
+            ui.strong("Audio:");
             if ui.button("Choose…").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_title("Select the session recording")
@@ -89,7 +89,7 @@ impl JamsplitApp {
             ui.label(display_path(self.state.inputs.audio.as_deref()));
             ui.end_row();
 
-            ui.label("Markers:");
+            ui.strong("Markers:");
             if ui.button("Choose…").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_title("Select the marker file")
@@ -104,7 +104,7 @@ impl JamsplitApp {
             ui.label(display_path(self.state.inputs.markers.as_deref()));
             ui.end_row();
 
-            ui.label("Format:");
+            ui.strong("Format:");
             let format_before = self.state.inputs.format;
             egui::ComboBox::from_id_salt("format")
                 .selected_text(self.state.inputs.format.label())
@@ -119,17 +119,17 @@ impl JamsplitApp {
             ui.label("");
             ui.end_row();
 
-            ui.label("Album:");
+            ui.strong("Album:");
             ui.text_edit_singleline(&mut self.state.inputs.album); // tags only
             ui.label("");
             ui.end_row();
 
-            ui.label("Artist:");
+            ui.strong("Artist:");
             ui.text_edit_singleline(&mut self.state.inputs.artist); // tags only
             ui.label("");
             ui.end_row();
 
-            ui.label("Output dir:");
+            ui.strong("Output dir:");
             if ui.button("Choose…").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_title("Select the output directory")
@@ -180,13 +180,13 @@ impl JamsplitApp {
             ui.label(label);
         }
         for warning in &preview.warnings {
-            ui.colored_label(egui::Color32::YELLOW, format!("warning: {warning}"));
+            warn_label(ui, format!("warning: {warning}"));
         }
         for error in &preview.errors {
-            ui.colored_label(egui::Color32::LIGHT_RED, format!("error: {error}"));
+            error_label(ui, format!("error: {error}"));
         }
         for collision in &preview.collisions {
-            ui.colored_label(egui::Color32::LIGHT_RED, format!("error: {collision}"));
+            error_label(ui, format!("error: {collision}"));
         }
         if !preview.collisions.is_empty() {
             ui.weak("Check \"Overwrite existing files\" to replace them.");
@@ -240,20 +240,25 @@ impl JamsplitApp {
             return;
         };
         ui.heading("Exporting…");
-        ui.add(
-            egui::ProgressBar::new(results.len() as f32 / (*total).max(1) as f32)
-                .text(format!("{} / {total}", results.len())),
-        );
+        // Cancel sits on a fixed row beside the progress bar; the song log
+        // below grows without moving it.
+        ui.horizontal(|ui| {
+            if ui.button("Cancel").clicked() {
+                cancel.cancel();
+            }
+            ui.add(
+                egui::ProgressBar::new(results.len() as f32 / (*total).max(1) as f32)
+                    .text(format!("{} / {total}", results.len())),
+            );
+        });
         egui::ScrollArea::vertical()
-            .max_height(ui.available_height() - 40.0)
+            .stick_to_bottom(true)
+            .auto_shrink([false, false])
             .show(ui, |ui| {
                 for result in results {
                     song_line(ui, result);
                 }
             });
-        if ui.button("Cancel").clicked() {
-            cancel.cancel();
-        }
     }
 
     fn ui_done(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
@@ -264,7 +269,7 @@ impl JamsplitApp {
         match &end {
             ExportEnd::Failed(message) => {
                 ui.heading("Export failed");
-                ui.colored_label(egui::Color32::LIGHT_RED, message);
+                error_label(ui, message);
             }
             ExportEnd::Finished { report, summary } => {
                 let failed = report
@@ -290,7 +295,7 @@ impl JamsplitApp {
                         ui.weak(format!("summary: {}", path.display()));
                     }
                     Err(message) => {
-                        ui.colored_label(egui::Color32::LIGHT_RED, message);
+                        error_label(ui, message);
                     }
                 }
             }
@@ -333,6 +338,22 @@ fn display_path(path: Option<&Path>) -> String {
         .unwrap_or_else(|| "—".to_string())
 }
 
+/// Bold red error line — bold keeps it legible on both themes.
+fn error_label(ui: &mut egui::Ui, text: impl Into<egui::RichText>) {
+    ui.label(text.into().color(egui::Color32::LIGHT_RED).strong());
+}
+
+/// Bold warning line. Stock warn_fg_color is orange and reads as an error;
+/// stay in the yellow family while keeping contrast on both themes.
+fn warn_label(ui: &mut egui::Ui, text: impl Into<egui::RichText>) {
+    let color = if ui.visuals().dark_mode {
+        egui::Color32::YELLOW
+    } else {
+        egui::Color32::from_rgb(139, 109, 0)
+    };
+    ui.label(text.into().color(color).strong());
+}
+
 /// One settled song: "  1  /path/01 - Opener.mp3  ok". Failures expand to
 /// show the ffmpeg stderr tail.
 fn song_line(ui: &mut egui::Ui, result: &SongResult) {
@@ -352,8 +373,8 @@ fn song_line(ui: &mut egui::Ui, result: &SongResult) {
             ));
         }
         SongStatus::Failed { stderr_tail } => {
-            ui.colored_label(
-                egui::Color32::LIGHT_RED,
+            error_label(
+                ui,
                 format!("{:>3}  {}  FAILED", result.track, result.file.display()),
             );
             ui.collapsing(format!("ffmpeg output (track {})", result.track), |ui| {

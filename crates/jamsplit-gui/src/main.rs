@@ -8,6 +8,14 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "jamsplit",
         options,
-        Box::new(|_cc| Ok(Box::new(jamsplit_gui::app::JamsplitApp::new()))),
+        Box::new(|cc| {
+            // One tick larger than egui's defaults for legibility.
+            cc.egui_ctx.all_styles_mut(|style| {
+                for font_id in style.text_styles.values_mut() {
+                    font_id.size += 1.0;
+                }
+            });
+            Ok(Box::new(jamsplit_gui::app::JamsplitApp::new()))
+        }),
     )
 }
