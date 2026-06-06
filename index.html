@@ -247,6 +247,13 @@
       font-size: 0.95rem;
     }
 
+    .screenshot {
+      display: block;
+      width: min(720px, 100%);
+      height: auto;
+      margin: 0 auto;
+    }
+
     .ok {
       color: var(--good);
       font-weight: 750;
@@ -348,29 +355,32 @@
   </header>
 
   <main class="wrap">
+    <section aria-label="Screenshot">
+      <img class="screenshot" src="assets/screenshot.png" width="912" height="719" alt="jamsplit window with a recording and marker file loaded, showing six songs ready to split">
+    </section>
+
     <section>
-      <h2>Before You Start</h2>
+      <h2>How It Works</h2>
       <div class="grid">
         <div class="card">
-          <h3>1. Get ffmpeg</h3>
-          <p>jamsplit uses ffmpeg and ffprobe to read audio and write MP3s.</p>
-          <p class="note">If the app cannot find ffmpeg, use <strong>Locate ffmpeg...</strong>. ffprobe needs to be next to it.</p>
+          <h3>1. Record</h3>
+          <p>Record the session as one long audio file. WAV from a Zoom recorder is typical, but MP3 or anything else ffmpeg can read works.</p>
         </div>
         <div class="card">
-          <h3>2. Make a marker file</h3>
-          <p>Markers are song starts. The next marker becomes the end of the current song.</p>
-          <p class="note">Add a <code>0:00</code> marker if the first song starts at the beginning.</p>
+          <h3>2. Mark the song starts</h3>
+          <p>In Audacity, REAPER, or a plain text file, put a marker where each song begins. The next marker ends the current song.</p>
         </div>
         <div class="card">
           <h3>3. Split</h3>
-          <p>Pick the recording, pick the marker file, check the preview table, then click <strong>Split</strong>.</p>
-          <p class="note">Existing MP3s are not overwritten unless you choose that option.</p>
+          <p>jamsplit exports numbered MP3s like <code>01 - Opening Jam.mp3</code>.</p>
+          <p class="note">ffmpeg is built into the download, so there is nothing else to install.</p>
         </div>
       </div>
     </section>
 
     <section id="markers">
       <h2>Make Markers</h2>
+      <p class="note">Add a <code>0:00</code> marker if the first song starts at the beginning of the recording.</p>
       <div class="grid">
         <div class="card">
           <h3>Audacity</h3>
@@ -411,35 +421,15 @@
     <section id="use">
       <h2>Use The App</h2>
       <ol class="steps">
-        <li>Extract the download and run <strong>jamsplit-gui</strong>. On macOS, you may need to right-click and choose <strong>Open</strong> the first time.</li>
+        <li>Extract the download. On macOS, open <strong>jamsplit.app</strong> — right-click and choose <strong>Open</strong> the first time. On Windows and Linux, run <strong>jamsplit-gui</strong>.</li>
         <li>Choose the audio file. WAV from a Zoom recorder is the normal case, but anything ffprobe can read is accepted.</li>
         <li>Choose the marker file from Audacity, REAPER, or your plain text list.</li>
         <li>Leave the format on <strong>auto</strong> unless you need to force <strong>audacity</strong>, <strong>reaper</strong>, or <strong>plain</strong>.</li>
         <li>Optional: fill in album and artist tags, and choose an output folder.</li>
         <li>Check the preview table. If it looks right, click <strong>Split</strong>.</li>
       </ol>
-      <p class="note">Output files are numbered in marker order: <code>01 - Song Title.mp3</code>, <code>02 - Song Title.mp3</code>, and so on. jamsplit also writes a <code>jamsplit-summary.json</code> file in the output folder.</p>
-    </section>
-
-    <section>
-      <h2>ffmpeg Install Hints</h2>
-      <div class="grid">
-        <div class="card">
-          <h3>Windows</h3>
-          <p>Install ffmpeg with winget:</p>
-          <pre><code>winget install Gyan.FFmpeg</code></pre>
-        </div>
-        <div class="card">
-          <h3>macOS</h3>
-          <p>Install ffmpeg with Homebrew:</p>
-          <pre><code>brew install ffmpeg</code></pre>
-        </div>
-        <div class="card">
-          <h3>Linux</h3>
-          <p>Install ffmpeg with your package manager, for example:</p>
-          <pre><code>sudo apt install ffmpeg</code></pre>
-        </div>
-      </div>
+      <p class="note">Output files are numbered in marker order: <code>01 - Song Title.mp3</code>, <code>02 - Song Title.mp3</code>, and so on. jamsplit also writes a <code>jamsplit-summary.json</code> file in the output folder. Existing MP3s are not overwritten unless you choose that option.</p>
+      <p class="note">If the app reports ffmpeg is missing, use <strong>Locate ffmpeg...</strong> to point at an ffmpeg install. ffprobe needs to be next to it.</p>
     </section>
 
     <section>

@@ -35,9 +35,6 @@ M3 is done; v0.1.0 was published 2026-06-06 (plan:
 `docs/superpowers/plans/2026-06-06-m3-release-packaging.md`).
 Remaining before v1.0:
 
-- Revisit `index.html`: the ffmpeg install-hints section is optional now that
-  zips bundle ffmpeg. Asset names already satisfy the page's per-OS download
-  matcher (verified against the published v0.1.0).
 - Verify a real split from the Windows and Linux bundles on real machines
   (the macOS bundle was smoke-tested end to end; the other two only built and
   packaged in CI). The Windows visual checks — exe icon in Explorer, no

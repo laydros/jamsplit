@@ -3,6 +3,8 @@
 Split one long jam-session recording (usually a WAV from a Zoom recorder) into
 one MP3 per song, using a marker file with song start times and titles.
 
+![jamsplit window with a recording and marker file loaded, showing six songs ready to split](assets/screenshot.png)
+
 ## Download
 
 Prebuilt bundles for macOS (Apple Silicon), Linux x86_64, and Windows
