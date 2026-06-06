@@ -42,7 +42,7 @@ pub fn parse_ffprobe_output(json: &str, path: &Path) -> Result<AudioInfo, AudioE
     let duration_seconds: f64 = v["format"]["duration"]
         .as_str()
         .and_then(|d| d.parse().ok())
-        .filter(|d: &f64| *d > 0.0)
+        .filter(|d: &f64| d.is_finite() && *d > 0.0)
         .ok_or_else(|| AudioError::NoDuration(path.to_path_buf()))?;
     let lossless = is_lossless(&codec_name);
     Ok(AudioInfo { path: path.to_path_buf(), duration_seconds, codec_name, lossless })
@@ -107,6 +107,11 @@ mod tests {
         let nodur = r#"{"streams":[{"codec_name":"pcm_s16le"}],"format":{}}"#;
         assert!(matches!(
             parse_ffprobe_output(nodur, Path::new("x")).unwrap_err(),
+            AudioError::NoDuration(_)
+        ));
+        let infdur = r#"{"streams":[{"codec_name":"pcm_s16le"}],"format":{"duration":"inf"}}"#;
+        assert!(matches!(
+            parse_ffprobe_output(infdur, Path::new("x")).unwrap_err(),
             AudioError::NoDuration(_)
         ));
     }
