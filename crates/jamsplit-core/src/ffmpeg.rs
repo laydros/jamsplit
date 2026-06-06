@@ -388,7 +388,7 @@ mod tests {
             3,
             &opts(Some("Practice"), None),
         );
-        let want: Vec<OsString> = [
+        let mut want: Vec<OsString> = [
             "-hide_banner",
             "-nostdin",
             "-v",
@@ -414,11 +414,17 @@ mod tests {
             "album=Practice",
             "-f",
             "mp3",
-            "/out/02 - AC_DC Jam.mp3.part",
         ]
         .iter()
         .map(OsString::from)
         .collect();
+        // The output path is joined by part_path(), so its separator is
+        // platform-native; build the expectation the same way.
+        want.push(
+            Path::new("/out")
+                .join("02 - AC_DC Jam.mp3.part")
+                .into_os_string(),
+        );
         assert_eq!(got, want);
     }
 
