@@ -162,13 +162,142 @@ impl AppState {
         self.preview_pending = false;
         self.preview = Some(outcome);
     }
+
+    /// The Split button's single gate: a settled, clean preview.
+    pub fn can_split(&self) -> bool {
+        !self.preview_pending
+            && self.ffmpeg.is_ok()
+            && self
+                .preview
+                .as_ref()
+                .is_some_and(|p| p.plan.is_some() && p.errors.is_empty() && p.collisions.is_empty())
+    }
+
+    /// outdir or overwrite changed: refresh collisions against the stored
+    /// plan without re-running parse/probe/plan.
+    pub fn recheck_collisions(&mut self) {
+        let Some(outdir) = self.effective_outdir() else {
+            return;
+        };
+        if let Some(preview) = self.preview.as_mut() {
+            if let Some(plan) = &preview.plan {
+                preview.collisions = match jamsplit_core::plan::check_collisions(
+                    plan,
+                    &outdir,
+                    self.inputs.overwrite,
+                ) {
+                    Ok(()) => Vec::new(),
+                    Err(collisions) => collisions,
+                };
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use jamsplit_core::audio::AudioInfo;
     use jamsplit_core::ffmpeg::FfmpegPaths;
+    use jamsplit_core::plan::{Song, SplitPlan};
     use std::path::PathBuf;
+
+    fn two_song_plan(audio: PathBuf) -> SplitPlan {
+        SplitPlan {
+            songs: vec![
+                Song {
+                    track: 1,
+                    title: "Opener".to_string(),
+                    filename: "01 - Opener.mp3".to_string(),
+                    start_seconds: 0.0,
+                    end_seconds: 5.0,
+                    to_eof: false,
+                },
+                Song {
+                    track: 2,
+                    title: "Closer".to_string(),
+                    filename: "02 - Closer.mp3".to_string(),
+                    start_seconds: 5.0,
+                    end_seconds: 10.0,
+                    to_eof: true,
+                },
+            ],
+            audio: AudioInfo {
+                path: audio,
+                duration_seconds: 10.0,
+                codec_name: "pcm_s16le".to_string(),
+                lossless: true,
+            },
+            warnings: vec![],
+        }
+    }
+
+    fn outcome_with_plan(plan: SplitPlan) -> PreviewOutcome {
+        PreviewOutcome {
+            format: Some(("plain".to_string(), false)),
+            plan: Some(plan),
+            errors: vec![],
+            collisions: vec![],
+            warnings: vec![],
+        }
+    }
+
+    #[test]
+    fn can_split_requires_clean_plan() {
+        let mut state = ready_state();
+        assert!(!state.can_split()); // no preview yet
+
+        let gen = state.request_preview().unwrap().gen;
+        assert!(!state.can_split()); // pending
+
+        let plan = two_song_plan(PathBuf::from("/recordings/jam.wav"));
+        state.on_preview(gen, outcome_with_plan(plan.clone()));
+        assert!(state.can_split());
+
+        let gen = state.request_preview().unwrap().gen;
+        let mut bad = outcome_with_plan(plan.clone());
+        bad.errors.push("duplicate marker".to_string());
+        state.on_preview(gen, bad);
+        assert!(!state.can_split());
+
+        let gen = state.request_preview().unwrap().gen;
+        let mut colliding = outcome_with_plan(plan);
+        colliding
+            .collisions
+            .push("would overwrite existing file".to_string());
+        state.on_preview(gen, colliding);
+        assert!(!state.can_split());
+    }
+
+    #[test]
+    fn recheck_collisions_tracks_outdir_and_overwrite() {
+        let dir = tempfile::tempdir().unwrap();
+        let audio = dir.path().join("jam.wav");
+        let outdir = dir.path().join("jam");
+        std::fs::create_dir_all(&outdir).unwrap();
+        std::fs::write(outdir.join("01 - Opener.mp3"), b"x").unwrap();
+
+        let mut state = AppState::new(Ok(fake_ffmpeg()));
+        state.inputs.audio = Some(audio.clone());
+        state.inputs.markers = Some(dir.path().join("songs.txt"));
+        let gen = state.request_preview().unwrap().gen;
+        state.on_preview(gen, outcome_with_plan(two_song_plan(audio)));
+        // The worker found this collision too; simulate by rechecking.
+        state.recheck_collisions();
+        assert_eq!(state.preview.as_ref().unwrap().collisions.len(), 1);
+        assert!(!state.can_split());
+
+        state.inputs.overwrite = true;
+        state.recheck_collisions();
+        assert!(state.preview.as_ref().unwrap().collisions.is_empty());
+        assert!(state.can_split());
+
+        state.inputs.overwrite = false;
+        state.inputs.outdir = Some(dir.path().join("clean"));
+        state.recheck_collisions();
+        assert!(state.preview.as_ref().unwrap().collisions.is_empty());
+        assert!(state.can_split());
+    }
 
     pub fn fake_ffmpeg() -> FfmpegPaths {
         FfmpegPaths {
