@@ -31,6 +31,7 @@ pub struct PlanFailure {
 
 /// Seconds -> `M:SS.s` or `H:MM:SS.s` for tables and warnings.
 pub fn fmt_time(seconds: f64) -> String {
+    let seconds = (seconds * 10.0).round() / 10.0;
     let h = (seconds / 3600.0).floor() as u64;
     let m = ((seconds % 3600.0) / 60.0).floor() as u64;
     let s = seconds % 60.0;
@@ -327,6 +328,13 @@ mod tests {
     }
 
     #[test]
+    fn fmt_time_rounds_at_field_boundaries() {
+        assert_eq!(fmt_time(59.96), "1:00.0");
+        assert_eq!(fmt_time(3599.96), "1:00:00.0");
+        assert_eq!(fmt_time(59.94), "0:59.9");
+    }
+
+    #[test]
     fn collisions_respect_overwrite_and_ignore_part_files() {
         let dir = tempfile::tempdir().unwrap();
         let p = plan(&parsed(&[(0.0, "One"), (100.0, "Two")]), &audio(250.0)).unwrap();
@@ -342,6 +350,19 @@ mod tests {
         assert!(errs[0].contains("01 - One.mp3"));
         // unless overwrite
         assert!(check_collisions(&p, dir.path(), true).is_ok());
+    }
+
+    #[test]
+    fn failures_carry_warnings_gathered_before_the_error() {
+        let err = plan(&parsed(&[(100.0, "Two"), (0.0, "A"), (0.0, "Dup")]), &audio(250.0)).unwrap_err();
+        assert!(!err.errors.is_empty());
+        assert!(err.warnings.iter().any(|w| w.contains("sort")));
+    }
+
+    #[test]
+    fn last_song_short_warns_and_names_itself() {
+        let p = plan(&parsed(&[(0.0, "Long"), (249.0, "ShortLast")]), &audio(250.0)).unwrap();
+        assert!(p.warnings.iter().any(|w| w.contains("ShortLast")));
     }
 
     #[test]
