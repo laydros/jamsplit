@@ -209,7 +209,15 @@ pub fn export(
     opts: &ExportOptions,
     on_progress: &mut dyn FnMut(&SongResult),
 ) -> std::io::Result<ExportReport> {
-    std::fs::create_dir_all(&opts.outdir)?;
+    std::fs::create_dir_all(&opts.outdir).map_err(|e| {
+        std::io::Error::new(
+            e.kind(),
+            format!(
+                "could not create output directory {}: {e}",
+                opts.outdir.display()
+            ),
+        )
+    })?;
     let total = plan.songs.len();
     let mut results = Vec::with_capacity(total);
     let mut canceled = false;
@@ -238,9 +246,12 @@ pub fn export(
                 }
                 match std::fs::rename(&part, &target) {
                     Ok(()) => SongStatus::Ok,
-                    Err(e) => SongStatus::Failed {
-                        stderr_tail: format!("rename failed: {e}"),
-                    },
+                    Err(e) => {
+                        let _ = std::fs::remove_file(&part);
+                        SongStatus::Failed {
+                            stderr_tail: format!("rename failed: {e}"),
+                        }
+                    }
                 }
             }
             RunOutcome::Failed(stderr_tail) => {
@@ -313,11 +324,14 @@ fn run_one(
     };
 
     // -v error keeps stderr tiny, so reading after exit cannot deadlock on a
-    // full pipe (it fits in the OS pipe buffer)
-    let mut stderr = String::new();
+    // full pipe (it fits in the OS pipe buffer).
+    // Use read_to_end + from_utf8_lossy so non-UTF8 bytes (e.g. Windows paths
+    // with non-ASCII characters) never cause a silent empty capture.
+    let mut stderr_bytes = Vec::new();
     if let Some(mut pipe) = child.stderr.take() {
-        let _ = pipe.read_to_string(&mut stderr);
+        let _ = pipe.read_to_end(&mut stderr_bytes);
     }
+    let stderr = String::from_utf8_lossy(&stderr_bytes);
 
     if exit.success() {
         RunOutcome::Done
