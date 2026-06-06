@@ -1,7 +1,7 @@
-use crate::state::{AppState, FormatChoice, Phase};
+use crate::state::{AppState, ExportEnd, FormatChoice, Phase};
 use crate::worker::{self, Msg};
 use eframe::egui;
-use jamsplit_core::ffmpeg::FfmpegPaths;
+use jamsplit_core::ffmpeg::{FfmpegPaths, SongResult, SongStatus};
 use jamsplit_core::plan::fmt_time;
 use std::path::Path;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -230,8 +230,81 @@ impl JamsplitApp {
         }
     }
 
-    fn ui_exporting(&self, _ui: &mut egui::Ui) {}
-    fn ui_done(&mut self, _ui: &mut egui::Ui, _ctx: &egui::Context) {}
+    fn ui_exporting(&self, ui: &mut egui::Ui) {
+        let Phase::Exporting {
+            results,
+            total,
+            cancel,
+        } = &self.state.phase
+        else {
+            return;
+        };
+        ui.heading("Exporting…");
+        ui.add(
+            egui::ProgressBar::new(results.len() as f32 / (*total).max(1) as f32)
+                .text(format!("{} / {total}", results.len())),
+        );
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for result in results {
+                song_line(ui, result);
+            }
+        });
+        if ui.button("Cancel").clicked() {
+            cancel.cancel();
+        }
+    }
+
+    fn ui_done(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let Phase::Done(end) = &self.state.phase else {
+            return;
+        };
+        let end = end.clone();
+        match &end {
+            ExportEnd::Failed(message) => {
+                ui.heading("Export failed");
+                ui.colored_label(egui::Color32::LIGHT_RED, message);
+            }
+            ExportEnd::Finished { report, summary } => {
+                let failed = report
+                    .results
+                    .iter()
+                    .filter(|r| matches!(r.status, SongStatus::Failed { .. }))
+                    .count();
+                let heading = match (report.canceled, failed) {
+                    (true, _) => "Canceled — completed songs were kept".to_string(),
+                    (false, 0) => "Done".to_string(),
+                    (false, n) => format!("Done — {n} song(s) failed"),
+                };
+                ui.heading(heading);
+                egui::ScrollArea::vertical()
+                    .max_height(ui.available_height() - 60.0)
+                    .show(ui, |ui| {
+                        for result in &report.results {
+                            song_line(ui, result);
+                        }
+                    });
+                match summary {
+                    Ok(path) => {
+                        ui.weak(format!("summary: {}", path.display()));
+                    }
+                    Err(message) => {
+                        ui.colored_label(egui::Color32::LIGHT_RED, message);
+                    }
+                }
+            }
+        }
+        ui.separator();
+        ui.horizontal(|ui| {
+            if let Some(outdir) = self.state.effective_outdir() {
+                if ui.button("Open output folder").clicked() {
+                    let _ = open::that(outdir);
+                }
+            }
+            if ui.button("Back").clicked() {
+                self.kick_preview(ctx);
+            }
+        });
+    }
 }
 
 impl eframe::App for JamsplitApp {
@@ -256,4 +329,34 @@ impl eframe::App for JamsplitApp {
 fn display_path(path: Option<&Path>) -> String {
     path.map(|p| p.display().to_string())
         .unwrap_or_else(|| "—".to_string())
+}
+
+/// One settled song: "  1  /path/01 - Opener.mp3  ok". Failures expand to
+/// show the ffmpeg stderr tail.
+fn song_line(ui: &mut egui::Ui, result: &SongResult) {
+    match &result.status {
+        SongStatus::Ok => {
+            ui.label(format!(
+                "{:>3}  {}  ok",
+                result.track,
+                result.file.display()
+            ));
+        }
+        SongStatus::Skipped => {
+            ui.weak(format!(
+                "{:>3}  {}  skipped",
+                result.track,
+                result.file.display()
+            ));
+        }
+        SongStatus::Failed { stderr_tail } => {
+            ui.colored_label(
+                egui::Color32::LIGHT_RED,
+                format!("{:>3}  {}  FAILED", result.track, result.file.display()),
+            );
+            ui.collapsing(format!("ffmpeg output (track {})", result.track), |ui| {
+                ui.monospace(stderr_tail);
+            });
+        }
+    }
 }

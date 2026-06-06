@@ -8,16 +8,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "jamsplit",
         options,
-        Box::new(|_cc| Ok(Box::new(Placeholder))),
+        Box::new(|_cc| Ok(Box::new(jamsplit_gui::app::JamsplitApp::new()))),
     )
-}
-
-struct Placeholder;
-
-impl eframe::App for Placeholder {
-    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        eframe::egui::CentralPanel::default().show(ctx, |ui| {
-            ui.label("jamsplit");
-        });
-    }
 }
