@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust 2021. Core deps: serde, serde_json, thiserror, csv. CLI deps: clap (derive), anyhow. Dev deps: tempfile, assert_cmd, predicates.
 
-**Source of truth:** `docs/superpowers/specs/2026-06-05-jam-wav-splitter-design.md` (design, binding) and `jam-wav-splitter.md` (requirements). If this plan and the design doc conflict, the design doc wins — stop and flag it.
+**Source of truth:** `docs/superpowers/specs/2026-06-05-jamsplit-design.md` (design, binding) and `docs/spec.md` (requirements). If this plan and the design doc conflict, the design doc wins — stop and flag it.
 
 ---
 
@@ -3187,7 +3187,7 @@ Expected: fmt makes no changes (or only trivial ones — commit them), clippy is
 
 - [ ] **Step 2: Walk the spec's acceptance criteria**
 
-Map each criterion from `jam-wav-splitter.md` to its evidence:
+Map each criterion from `docs/spec.md` to its evidence:
 
 - "Works with Audacity label export" → `audacity` parser unit tests + `detection_skips_spectral_lines_like_the_parser_does`
 - "Works with plain timestamp text files" → `plain` parser unit tests + `validate_ok_announces_format_and_exits_zero`

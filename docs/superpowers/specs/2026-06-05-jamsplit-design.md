@@ -3,13 +3,13 @@ date: 2026-06-05
 updated: 2026-06-06
 tags:
   - design
-  - jam-wav-splitter
+  - jamsplit
 summary: "Validated design for jamsplit: Rust workspace with core lib, CLI, and egui GUI that split one long jam recording into per-song MP3s using a marker file and ffmpeg"
 ---
 
-# Jam Splitter Design
+# jamsplit Design
 
-Implements [jam-wav-splitter.md](../../../jam-wav-splitter.md) (the v1 spec), extended with a GUI milestone. The target users are bandmates who will not use a CLI; nothing ships to them until the GUI exists.
+Implements [spec.md](../../spec.md) (the v1 spec), extended with a GUI milestone. The target users are bandmates who will not use a CLI; nothing ships to them until the GUI exists.
 
 ## Decisions and rationale
 

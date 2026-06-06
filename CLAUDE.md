@@ -19,8 +19,8 @@ is the historical record of M2 design decisions.
 
 Read these before any work, in order:
 
-1. `jam-wav-splitter.md` - v1 requirements spec
-2. `docs/superpowers/specs/2026-06-05-jam-wav-splitter-design.md` - validated design
+1. `docs/spec.md` - v1 requirements spec
+2. `docs/superpowers/specs/2026-06-05-jamsplit-design.md` - validated design
 
 The design doc records decided trade-offs (Rust over Go, per-song ffmpeg invocations over the segment muxer, workspace over single crate, egui over slint/Tauri, MP3 V0 hardcoded). Read the rationale before proposing changes that touch them; don't re-litigate them without Jason.
 

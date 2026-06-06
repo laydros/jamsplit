@@ -1,4 +1,4 @@
-# Jam Splitter v1 Spec
+# jamsplit v1 Spec
 
 ## Goal
 Build a CLI tool that takes one long jam recording and a human-made marker file, then exports one MP3 per song.
