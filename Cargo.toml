@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/jamsplit-core"]
+members = ["crates/jamsplit-core", "crates/jamsplit-cli"]
 
 [workspace.package]
 version = "0.1.0"
