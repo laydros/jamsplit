@@ -244,11 +244,13 @@ impl JamsplitApp {
             egui::ProgressBar::new(results.len() as f32 / (*total).max(1) as f32)
                 .text(format!("{} / {total}", results.len())),
         );
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for result in results {
-                song_line(ui, result);
-            }
-        });
+        egui::ScrollArea::vertical()
+            .max_height(ui.available_height() - 40.0)
+            .show(ui, |ui| {
+                for result in results {
+                    song_line(ui, result);
+                }
+            });
         if ui.button("Cancel").clicked() {
             cancel.cancel();
         }
