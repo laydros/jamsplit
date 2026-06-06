@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{Args, Parser, Subcommand};
-use jamsplit_core::audio::{probe_audio, AudioInfo};
+use jamsplit_core::audio::probe_audio;
 use jamsplit_core::ffmpeg::{export, CancelToken, ExportOptions, FfmpegPaths, SongStatus};
 use jamsplit_core::markers::{parse_markers, MarkerFormat, ParsedMarkers};
 use jamsplit_core::plan::{check_collisions, plan, SplitPlan};
@@ -68,7 +68,6 @@ pub struct SplitArgs {
 pub struct Loaded {
     pub ffmpeg: FfmpegPaths,
     pub parsed: ParsedMarkers,
-    pub audio: AudioInfo,
     pub plan: SplitPlan,
 }
 
@@ -105,7 +104,7 @@ pub fn load(common: &CommonArgs) -> Result<Loaded> {
         eprintln!("warning: {w}");
     }
 
-    Ok(Loaded { ffmpeg, parsed, audio, plan: split_plan })
+    Ok(Loaded { ffmpeg, parsed, plan: split_plan })
 }
 
 pub fn validate(args: &CommonArgs) -> Result<()> {
