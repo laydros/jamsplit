@@ -1,0 +1,259 @@
+use crate::state::{AppState, FormatChoice, Phase};
+use crate::worker::{self, Msg};
+use eframe::egui;
+use jamsplit_core::ffmpeg::FfmpegPaths;
+use jamsplit_core::plan::fmt_time;
+use std::path::Path;
+use std::sync::mpsc::{channel, Receiver, Sender};
+
+pub struct JamsplitApp {
+    state: AppState,
+    tx: Sender<Msg>,
+    rx: Receiver<Msg>,
+}
+
+impl Default for JamsplitApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl JamsplitApp {
+    pub fn new() -> Self {
+        let (tx, rx) = channel();
+        let ffmpeg = FfmpegPaths::locate(None).map_err(|e| e.to_string());
+        Self {
+            state: AppState::new(ffmpeg),
+            tx,
+            rx,
+        }
+    }
+
+    fn drain_messages(&mut self) {
+        while let Ok(msg) = self.rx.try_recv() {
+            match msg {
+                Msg::Preview { gen, outcome } => self.state.on_preview(gen, outcome),
+                Msg::Song(result) => self.state.on_song(result),
+                Msg::ExportDone(end) => self.state.on_export_done(end),
+            }
+        }
+    }
+
+    fn kick_preview(&mut self, ctx: &egui::Context) {
+        if let Some(request) = self.state.request_preview() {
+            let ctx = ctx.clone();
+            worker::spawn_preview(request, self.tx.clone(), move || ctx.request_repaint());
+        }
+    }
+
+    /// Nothing is shown while ffmpeg is found. On a locate failure the
+    /// error (with install hints) appears with a picker — the GUI's
+    /// equivalent of --ffmpeg-path.
+    fn ui_ffmpeg(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let Err(message) = self.state.ffmpeg.clone() else {
+            return;
+        };
+        ui.colored_label(egui::Color32::LIGHT_RED, message);
+        if ui.button("Locate ffmpeg…").clicked() {
+            if let Some(path) = rfd::FileDialog::new()
+                .set_title("Select the ffmpeg binary (ffprobe must sit next to it)")
+                .pick_file()
+            {
+                self.state.ffmpeg = FfmpegPaths::locate(Some(&path)).map_err(|e| e.to_string());
+                self.kick_preview(ctx);
+            }
+        }
+        ui.separator();
+    }
+
+    fn ui_inputs(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let mut preview_dirty = false;
+        let mut collisions_dirty = false;
+
+        egui::Grid::new("inputs").num_columns(3).show(ui, |ui| {
+            ui.label("Audio:");
+            if ui.button("Choose…").clicked() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title("Select the session recording")
+                    .add_filter(
+                        "audio",
+                        &["wav", "flac", "aiff", "aif", "mp3", "m4a", "ogg"],
+                    )
+                    .add_filter("all files", &["*"])
+                    .pick_file()
+                {
+                    self.state.inputs.audio = Some(path);
+                    preview_dirty = true;
+                }
+            }
+            ui.label(display_path(self.state.inputs.audio.as_deref()));
+            ui.end_row();
+
+            ui.label("Markers:");
+            if ui.button("Choose…").clicked() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title("Select the marker file")
+                    .add_filter("markers", &["txt", "csv"])
+                    .add_filter("all files", &["*"])
+                    .pick_file()
+                {
+                    self.state.inputs.markers = Some(path);
+                    preview_dirty = true;
+                }
+            }
+            ui.label(display_path(self.state.inputs.markers.as_deref()));
+            ui.end_row();
+
+            ui.label("Format:");
+            let format_before = self.state.inputs.format;
+            egui::ComboBox::from_id_salt("format")
+                .selected_text(self.state.inputs.format.label())
+                .show_ui(ui, |ui| {
+                    for choice in FormatChoice::ALL {
+                        ui.selectable_value(&mut self.state.inputs.format, choice, choice.label());
+                    }
+                });
+            if self.state.inputs.format != format_before {
+                preview_dirty = true;
+            }
+            ui.label("");
+            ui.end_row();
+
+            ui.label("Album:");
+            ui.text_edit_singleline(&mut self.state.inputs.album); // tags only
+            ui.label("");
+            ui.end_row();
+
+            ui.label("Artist:");
+            ui.text_edit_singleline(&mut self.state.inputs.artist); // tags only
+            ui.label("");
+            ui.end_row();
+
+            ui.label("Output dir:");
+            if ui.button("Choose…").clicked() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title("Select the output directory")
+                    .pick_folder()
+                {
+                    self.state.inputs.outdir = Some(path);
+                    collisions_dirty = true;
+                }
+            }
+            if self.state.inputs.outdir.is_some() {
+                ui.label(display_path(self.state.inputs.outdir.as_deref()));
+            } else {
+                match self.state.effective_outdir() {
+                    Some(default) => ui.weak(format!("(default: {})", default.display())),
+                    None => ui.weak("(default: next to the audio file)"),
+                };
+            }
+            ui.end_row();
+
+            ui.label("");
+            if ui
+                .checkbox(&mut self.state.inputs.overwrite, "Overwrite existing files")
+                .changed()
+            {
+                collisions_dirty = true;
+            }
+            ui.label("");
+            ui.end_row();
+        });
+
+        if preview_dirty {
+            self.kick_preview(ctx);
+        } else if collisions_dirty {
+            self.state.recheck_collisions();
+        }
+    }
+
+    fn ui_preview(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        if self.state.preview_pending {
+            ui.spinner();
+            return;
+        }
+        let Some(preview) = self.state.preview.clone() else {
+            ui.weak("Pick an audio file and a marker file to preview the split.");
+            return;
+        };
+        if let Some(label) = preview.format_label() {
+            ui.label(label);
+        }
+        for warning in &preview.warnings {
+            ui.colored_label(egui::Color32::YELLOW, format!("warning: {warning}"));
+        }
+        for error in &preview.errors {
+            ui.colored_label(egui::Color32::LIGHT_RED, format!("error: {error}"));
+        }
+        for collision in &preview.collisions {
+            ui.colored_label(egui::Color32::LIGHT_RED, format!("error: {collision}"));
+        }
+        if !preview.collisions.is_empty() {
+            ui.weak("Check \"Overwrite existing files\" to replace them.");
+        }
+        if let Some(plan) = &preview.plan {
+            egui::ScrollArea::vertical()
+                .max_height(ui.available_height() - 40.0)
+                .show(ui, |ui| {
+                    egui::Grid::new("plan")
+                        .striped(true)
+                        .num_columns(6)
+                        .show(ui, |ui| {
+                            ui.strong("track");
+                            ui.strong("start");
+                            ui.strong("end");
+                            ui.strong("length");
+                            ui.strong("title");
+                            ui.strong("filename");
+                            ui.end_row();
+                            for song in &plan.songs {
+                                ui.label(song.track.to_string());
+                                ui.label(fmt_time(song.start_seconds));
+                                ui.label(fmt_time(song.end_seconds));
+                                ui.label(fmt_time(song.end_seconds - song.start_seconds));
+                                ui.label(&song.title);
+                                ui.label(&song.filename);
+                                ui.end_row();
+                            }
+                        });
+                });
+        }
+        ui.separator();
+        if ui
+            .add_enabled(self.state.can_split(), egui::Button::new("Split"))
+            .clicked()
+        {
+            if let Some(request) = self.state.start_export() {
+                let ctx = ctx.clone();
+                worker::spawn_export(request, self.tx.clone(), move || ctx.request_repaint());
+            }
+        }
+    }
+
+    fn ui_exporting(&self, _ui: &mut egui::Ui) {}
+    fn ui_done(&mut self, _ui: &mut egui::Ui, _ctx: &egui::Context) {}
+}
+
+impl eframe::App for JamsplitApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.drain_messages();
+        egui::CentralPanel::default().show(ctx, |ui| {
+            self.ui_ffmpeg(ui, ctx);
+            let exporting = matches!(self.state.phase, Phase::Exporting { .. });
+            ui.add_enabled_ui(!exporting, |ui| self.ui_inputs(ui, ctx));
+            ui.separator();
+            if matches!(self.state.phase, Phase::Setup) {
+                self.ui_preview(ui, ctx);
+            } else if matches!(self.state.phase, Phase::Exporting { .. }) {
+                self.ui_exporting(ui);
+            } else {
+                self.ui_done(ui, ctx);
+            }
+        });
+    }
+}
+
+fn display_path(path: Option<&Path>) -> String {
+    path.map(|p| p.display().to_string())
+        .unwrap_or_else(|| "—".to_string())
+}
