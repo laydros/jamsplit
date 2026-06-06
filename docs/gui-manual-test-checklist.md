@@ -59,10 +59,11 @@ markers `/tmp/songs.txt`: `0:00 One` / `0:12 Two` / `0:21 Three`.
 ## Window behavior
 
 - [x] Resizing small: the track table scrolls rather than overflowing.
-- [ ] Windows only: launching the exe opens no console window.
-- [ ] Windows only: the GUI launches on a machine without working OpenGL
+- [x] Windows only: launching the exe opens no console window.
+  (Verified 2026-06-06; exe icon also shows in Explorer and the taskbar.)
+- [x] Windows only: the GUI launches on a machine without working OpenGL
   (VM or RDP session on the Basic Display driver) — wgpu's WARP software
-  fallback covers this.
+  fallback covers this. (Verified 2026-06-06 on a VM over RDP.)
 - [ ] A startup failure shows an error dialog instead of exiting silently
   (force one by breaking the renderer, e.g. a bogus `WGPU_BACKEND` on
   Windows).

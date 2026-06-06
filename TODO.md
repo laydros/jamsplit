@@ -36,9 +36,10 @@ M3 is done; v0.1.0 was published 2026-06-06 (plan:
 Remaining before v1.0:
 
 - Verify a real split from the Windows and Linux bundles on real machines
-  (the macOS bundle was smoke-tested end to end; the other two only built and
-  packaged in CI). The Windows visual checks — exe icon in Explorer, no
-  console window — fold into this.
+  (the macOS bundle was smoke-tested end to end). The Windows GUI now
+  launches (wgpu/WARP fix, verified 2026-06-06 on a VM over RDP, along with
+  the no-console and Explorer/taskbar icon checks), but a real split has
+  not been run from the Windows or Linux bundles yet.
 
 ## Future (post-M3 candidates)
 
