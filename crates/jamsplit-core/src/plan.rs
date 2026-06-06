@@ -121,18 +121,10 @@ pub fn plan(parsed: &ParsedMarkers, audio: &AudioInfo) -> Result<SplitPlan, Plan
         let filename = filename_for(track, total, &title);
         let len = end_seconds - m.start_seconds;
         if len < 2.0 {
-            if to_eof {
-                warnings.push(format!(
-                    "song {} '{}' is only {len:.1}s long — stray marker?",
-                    track, title
-                ));
-            } else {
-                let next_title = resolve_title(&markers[i + 1].title, track + 1);
-                warnings.push(format!(
-                    "only {len:.1}s before '{}' — stray marker?",
-                    next_title
-                ));
-            }
+            warnings.push(format!(
+                "song {} '{}' is only {len:.1}s long — stray marker?",
+                track, title
+            ));
         }
         songs.push(Song { track, title, filename, start_seconds: m.start_seconds, end_seconds, to_eof });
     }
@@ -312,7 +304,7 @@ mod tests {
         let mut lossy = audio(250.0);
         lossy.codec_name = "mp3".to_string();
         lossy.lossless = false;
-        let p = plan(&parsed(&[(10.0, "A"), (11.0, "Tiny"), (50.0, "B")]), &lossy).unwrap();
+        let p = plan(&parsed(&[(10.0, "Tiny"), (11.0, "A"), (50.0, "B")]), &lossy).unwrap();
         assert!(p.warnings.iter().any(|w| w.contains("0:10.0"))); // skipped intro
         assert!(p.warnings.iter().any(|w| w.contains("Tiny")));   // 1s song
         assert!(p.warnings.iter().any(|w| w.contains("approximate"))); // lossy
