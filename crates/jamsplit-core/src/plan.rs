@@ -55,7 +55,9 @@ pub fn plan(parsed: &ParsedMarkers, audio: &AudioInfo) -> Result<SplitPlan, Plan
     }
 
     let mut markers = parsed.markers.clone();
-    let already_sorted = markers.windows(2).all(|w| w[0].start_seconds <= w[1].start_seconds);
+    let already_sorted = markers
+        .windows(2)
+        .all(|w| w[0].start_seconds <= w[1].start_seconds);
     if !already_sorted {
         markers.sort_by(|a, b| a.start_seconds.total_cmp(&b.start_seconds));
         warnings.push("markers were out of order — auto-sorted by start time".to_string());
@@ -127,15 +129,30 @@ pub fn plan(parsed: &ParsedMarkers, audio: &AudioInfo) -> Result<SplitPlan, Plan
                 track, title
             ));
         }
-        songs.push(Song { track, title, filename, start_seconds: m.start_seconds, end_seconds, to_eof });
+        songs.push(Song {
+            track,
+            title,
+            filename,
+            start_seconds: m.start_seconds,
+            end_seconds,
+            to_eof,
+        });
     }
 
-    Ok(SplitPlan { songs, audio: audio.clone(), warnings })
+    Ok(SplitPlan {
+        songs,
+        audio: audio.clone(),
+        warnings,
+    })
 }
 
 /// Pre-export check: which target files already exist in `outdir`?
 /// Stale `.part` files are not collisions (never finished output).
-pub fn check_collisions(plan: &SplitPlan, outdir: &Path, overwrite: bool) -> Result<(), Vec<String>> {
+pub fn check_collisions(
+    plan: &SplitPlan,
+    outdir: &Path,
+    overwrite: bool,
+) -> Result<(), Vec<String>> {
     if overwrite {
         return Ok(());
     }
@@ -143,9 +160,18 @@ pub fn check_collisions(plan: &SplitPlan, outdir: &Path, overwrite: bool) -> Res
         .songs
         .iter()
         .filter(|s| outdir.join(&s.filename).exists())
-        .map(|s| format!("would overwrite existing file: {}", outdir.join(&s.filename).display()))
+        .map(|s| {
+            format!(
+                "would overwrite existing file: {}",
+                outdir.join(&s.filename).display()
+            )
+        })
         .collect();
-    if collisions.is_empty() { Ok(()) } else { Err(collisions) }
+    if collisions.is_empty() {
+        Ok(())
+    } else {
+        Err(collisions)
+    }
 }
 
 /// Resolve a marker title: blank/whitespace becomes `Untitled Song {track}`.
@@ -253,7 +279,10 @@ mod tests {
         ParsedMarkers {
             markers: markers
                 .iter()
-                .map(|(s, t)| RawMarker { start_seconds: *s, title: t.to_string() })
+                .map(|(s, t)| RawMarker {
+                    start_seconds: *s,
+                    title: t.to_string(),
+                })
                 .collect(),
             format: MarkerFormat::Plain,
         }
@@ -287,7 +316,10 @@ mod tests {
         .unwrap_err();
         assert_eq!(err.errors.len(), 2);
         assert!(err.errors.iter().any(|e| e.contains("duplicate")));
-        assert!(err.errors.iter().any(|e| e.contains("Past End") || e.contains("999")));
+        assert!(err
+            .errors
+            .iter()
+            .any(|e| e.contains("Past End") || e.contains("999")));
     }
 
     #[test]
@@ -307,7 +339,7 @@ mod tests {
         lossy.lossless = false;
         let p = plan(&parsed(&[(10.0, "Tiny"), (11.0, "A"), (50.0, "B")]), &lossy).unwrap();
         assert!(p.warnings.iter().any(|w| w.contains("0:10.0"))); // skipped intro
-        assert!(p.warnings.iter().any(|w| w.contains("Tiny")));   // 1s song
+        assert!(p.warnings.iter().any(|w| w.contains("Tiny"))); // 1s song
         assert!(p.warnings.iter().any(|w| w.contains("approximate"))); // lossy
     }
 
@@ -354,14 +386,22 @@ mod tests {
 
     #[test]
     fn failures_carry_warnings_gathered_before_the_error() {
-        let err = plan(&parsed(&[(100.0, "Two"), (0.0, "A"), (0.0, "Dup")]), &audio(250.0)).unwrap_err();
+        let err = plan(
+            &parsed(&[(100.0, "Two"), (0.0, "A"), (0.0, "Dup")]),
+            &audio(250.0),
+        )
+        .unwrap_err();
         assert!(!err.errors.is_empty());
         assert!(err.warnings.iter().any(|w| w.contains("sort")));
     }
 
     #[test]
     fn last_song_short_warns_and_names_itself() {
-        let p = plan(&parsed(&[(0.0, "Long"), (249.0, "ShortLast")]), &audio(250.0)).unwrap();
+        let p = plan(
+            &parsed(&[(0.0, "Long"), (249.0, "ShortLast")]),
+            &audio(250.0),
+        )
+        .unwrap();
         assert!(p.warnings.iter().any(|w| w.contains("ShortLast")));
     }
 

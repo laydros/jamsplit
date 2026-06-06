@@ -17,7 +17,10 @@ pub enum AudioError {
     #[error("audio file not found: {0}")]
     NotFound(std::path::PathBuf),
     #[error("ffprobe failed on {path}: {stderr}")]
-    ProbeFailed { path: std::path::PathBuf, stderr: String },
+    ProbeFailed {
+        path: std::path::PathBuf,
+        stderr: String,
+    },
     #[error("{0} has no audio stream")]
     NoAudioStream(std::path::PathBuf),
     #[error("could not read a duration from {0}")]
@@ -45,7 +48,12 @@ pub fn parse_ffprobe_output(json: &str, path: &Path) -> Result<AudioInfo, AudioE
         .filter(|d: &f64| d.is_finite() && *d > 0.0)
         .ok_or_else(|| AudioError::NoDuration(path.to_path_buf()))?;
     let lossless = is_lossless(&codec_name);
-    Ok(AudioInfo { path: path.to_path_buf(), duration_seconds, codec_name, lossless })
+    Ok(AudioInfo {
+        path: path.to_path_buf(),
+        duration_seconds,
+        codec_name,
+        lossless,
+    })
 }
 
 /// Run ffprobe on `path` and build an `AudioInfo`.
@@ -55,11 +63,16 @@ pub fn probe_audio(ffmpeg: &FfmpegPaths, path: &Path) -> Result<AudioInfo, Audio
     }
     let output = std::process::Command::new(&ffmpeg.ffprobe)
         .args([
-            "-v", "error",
-            "-select_streams", "a:0",
-            "-show_entries", "stream=codec_name",
-            "-show_entries", "format=duration",
-            "-of", "json",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=codec_name",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
         ])
         .arg(path)
         .output()
@@ -92,9 +105,17 @@ mod tests {
     #[test]
     fn mp3_is_lossy_flac_is_not() {
         let mp3 = r#"{"streams":[{"codec_name":"mp3"}],"format":{"duration":"5.0"}}"#;
-        assert!(!parse_ffprobe_output(mp3, Path::new("a.mp3")).unwrap().lossless);
+        assert!(
+            !parse_ffprobe_output(mp3, Path::new("a.mp3"))
+                .unwrap()
+                .lossless
+        );
         let flac = r#"{"streams":[{"codec_name":"flac"}],"format":{"duration":"5.0"}}"#;
-        assert!(parse_ffprobe_output(flac, Path::new("a.flac")).unwrap().lossless);
+        assert!(
+            parse_ffprobe_output(flac, Path::new("a.flac"))
+                .unwrap()
+                .lossless
+        );
     }
 
     #[test]

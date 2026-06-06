@@ -25,12 +25,22 @@ pub fn parse(content: &str) -> Result<Vec<RawMarker>, Vec<ParseError>> {
                 } else if title == "-" {
                     title = "";
                 }
-                markers.push(RawMarker { start_seconds, title: title.to_string() });
+                markers.push(RawMarker {
+                    start_seconds,
+                    title: title.to_string(),
+                });
             }
-            Err(message) => errors.push(ParseError { line: line_no, message }),
+            Err(message) => errors.push(ParseError {
+                line: line_no,
+                message,
+            }),
         }
     }
-    if errors.is_empty() { Ok(markers) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(markers)
+    } else {
+        Err(errors)
+    }
 }
 
 #[cfg(test)]
@@ -38,19 +48,25 @@ mod tests {
     use super::*;
 
     fn marker(start: f64, title: &str) -> RawMarker {
-        RawMarker { start_seconds: start, title: title.to_string() }
+        RawMarker {
+            start_seconds: start,
+            title: title.to_string(),
+        }
     }
 
     #[test]
     fn parses_all_separator_styles() {
         let input = "0:00 Opening Jam\n05:23 - Slow Blues\n1:02:11\tCloser\n3722.5 Encore Noodle\n";
         let got = parse(input).unwrap();
-        assert_eq!(got, vec![
-            marker(0.0, "Opening Jam"),
-            marker(323.0, "Slow Blues"),
-            marker(3731.0, "Closer"),
-            marker(3722.5, "Encore Noodle"),
-        ]);
+        assert_eq!(
+            got,
+            vec![
+                marker(0.0, "Opening Jam"),
+                marker(323.0, "Slow Blues"),
+                marker(3731.0, "Closer"),
+                marker(3722.5, "Encore Noodle"),
+            ]
+        );
     }
 
     #[test]

@@ -111,21 +111,47 @@ mod tests {
             lossless: true,
         };
         let songs = vec![
-            Song { track: 1, title: "One".into(), filename: "01 - One.mp3".into(),
-                   start_seconds: 0.0, end_seconds: 323.5, to_eof: false },
-            Song { track: 2, title: "Two".into(), filename: "02 - Two.mp3".into(),
-                   start_seconds: 323.5, end_seconds: 600.0, to_eof: true },
+            Song {
+                track: 1,
+                title: "One".into(),
+                filename: "01 - One.mp3".into(),
+                start_seconds: 0.0,
+                end_seconds: 323.5,
+                to_eof: false,
+            },
+            Song {
+                track: 2,
+                title: "Two".into(),
+                filename: "02 - Two.mp3".into(),
+                start_seconds: 323.5,
+                end_seconds: 600.0,
+                to_eof: true,
+            },
         ];
-        SplitPlan { songs, audio, warnings: vec!["a warning".to_string()] }
+        SplitPlan {
+            songs,
+            audio,
+            warnings: vec!["a warning".to_string()],
+        }
     }
 
     fn test_report() -> ExportReport {
         ExportReport {
             results: vec![
-                SongResult { track: 1, title: "One".into(), file: "/out/01 - One.mp3".into(),
-                             status: SongStatus::Ok },
-                SongResult { track: 2, title: "Two".into(), file: "/out/02 - Two.mp3".into(),
-                             status: SongStatus::Failed { stderr_tail: "boom".into() } },
+                SongResult {
+                    track: 1,
+                    title: "One".into(),
+                    file: "/out/01 - One.mp3".into(),
+                    status: SongStatus::Ok,
+                },
+                SongResult {
+                    track: 2,
+                    title: "Two".into(),
+                    file: "/out/02 - Two.mp3".into(),
+                    status: SongStatus::Failed {
+                        stderr_tail: "boom".into(),
+                    },
+                },
             ],
             canceled: false,
         }
@@ -133,8 +159,14 @@ mod tests {
 
     #[test]
     fn summary_carries_statuses_and_errors() {
-        let s = build_summary(&test_plan(), &test_report(), Path::new("/in/markers.txt"),
-                              "plain", Some("Album"), None);
+        let s = build_summary(
+            &test_plan(),
+            &test_report(),
+            Path::new("/in/markers.txt"),
+            "plain",
+            Some("Album"),
+            None,
+        );
         assert_eq!(s.tool_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(s.songs[0].status, "ok");
         assert_eq!(s.songs[0].error, None);
@@ -149,8 +181,14 @@ mod tests {
     #[test]
     fn write_summary_creates_the_file() {
         let dir = tempfile::tempdir().unwrap();
-        let s = build_summary(&test_plan(), &test_report(), Path::new("/in/markers.txt"),
-                              "plain", None, None);
+        let s = build_summary(
+            &test_plan(),
+            &test_report(),
+            Path::new("/in/markers.txt"),
+            "plain",
+            None,
+            None,
+        );
         let path = write_summary(&s, dir.path()).unwrap();
         assert_eq!(path.file_name().unwrap(), "jamsplit-summary.json");
         let read: serde_json::Value =

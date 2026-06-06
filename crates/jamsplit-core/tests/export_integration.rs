@@ -13,7 +13,11 @@ fn probes_a_real_wav() {
     let dir = tempfile::tempdir().unwrap();
     let wav = make_wav(&ff, dir.path(), 10.0);
     let info = probe_audio(&ff, &wav).unwrap();
-    assert!((info.duration_seconds - 10.0).abs() < 0.1, "duration: {}", info.duration_seconds);
+    assert!(
+        (info.duration_seconds - 10.0).abs() < 0.1,
+        "duration: {}",
+        info.duration_seconds
+    );
     assert!(info.lossless);
     assert!(info.codec_name.starts_with("pcm_"));
 }
@@ -36,7 +40,14 @@ fn probe_non_audio_file_fails() {
 
 fn read_tags(ff: &jamsplit_core::ffmpeg::FfmpegPaths, path: &Path) -> serde_json::Value {
     let out = std::process::Command::new(&ff.ffprobe)
-        .args(["-v", "error", "-show_entries", "format_tags=title,track,album,artist", "-of", "json"])
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "format_tags=title,track,album,artist",
+            "-of",
+            "json",
+        ])
         .arg(path)
         .output()
         .unwrap();
@@ -102,7 +113,9 @@ fn one_failure_does_not_stop_the_rest() {
     std::fs::create_dir_all(outdir.join("02 - Two.mp3.part")).unwrap();
 
     let report = export(&p, &ff, &opts(&outdir, false), &mut |_| {}).unwrap();
-    assert!(matches!(&report.results[1].status, SongStatus::Failed { stderr_tail } if !stderr_tail.is_empty()));
+    assert!(
+        matches!(&report.results[1].status, SongStatus::Failed { stderr_tail } if !stderr_tail.is_empty())
+    );
     assert!(matches!(report.results[0].status, SongStatus::Ok));
     assert!(matches!(report.results[2].status, SongStatus::Ok));
     assert!(outdir.join("01 - One.mp3").is_file());

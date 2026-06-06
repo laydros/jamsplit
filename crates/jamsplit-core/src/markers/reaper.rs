@@ -2,7 +2,10 @@ use super::{ParseError, RawMarker};
 
 fn looks_like_bars_beats(s: &str) -> bool {
     let parts: Vec<&str> = s.split('.').collect();
-    parts.len() == 3 && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
 }
 
 /// Parse a Reaper Region/Marker Manager CSV export.
@@ -12,9 +15,18 @@ pub fn parse(content: &str) -> Result<Vec<RawMarker>, Vec<ParseError>> {
         .from_reader(content.as_bytes());
     let headers = match reader.headers() {
         Ok(h) => h.clone(),
-        Err(e) => return Err(vec![ParseError { line: 1, message: format!("not a CSV file: {e}") }]),
+        Err(e) => {
+            return Err(vec![ParseError {
+                line: 1,
+                message: format!("not a CSV file: {e}"),
+            }])
+        }
     };
-    let col = |name: &str| headers.iter().position(|h| h.trim().eq_ignore_ascii_case(name));
+    let col = |name: &str| {
+        headers
+            .iter()
+            .position(|h| h.trim().eq_ignore_ascii_case(name))
+    };
     let (id_col, name_col, start_col) = match (col("#"), col("Name"), col("Start")) {
         (Some(i), Some(n), Some(s)) => (i, n, s),
         _ => {
@@ -32,7 +44,10 @@ pub fn parse(content: &str) -> Result<Vec<RawMarker>, Vec<ParseError>> {
         let record = match record {
             Ok(r) => r,
             Err(e) => {
-                errors.push(ParseError { line: line_no, message: format!("bad CSV row: {e}") });
+                errors.push(ParseError {
+                    line: line_no,
+                    message: format!("bad CSV row: {e}"),
+                });
                 continue;
             }
         };
@@ -52,12 +67,22 @@ pub fn parse(content: &str) -> Result<Vec<RawMarker>, Vec<ParseError>> {
         match start {
             Ok(start_seconds) => {
                 let title = record.get(name_col).unwrap_or("").trim().to_string();
-                markers.push(RawMarker { start_seconds, title });
+                markers.push(RawMarker {
+                    start_seconds,
+                    title,
+                });
             }
-            Err(message) => errors.push(ParseError { line: line_no, message }),
+            Err(message) => errors.push(ParseError {
+                line: line_no,
+                message,
+            }),
         }
     }
-    if errors.is_empty() { Ok(markers) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(markers)
+    } else {
+        Err(errors)
+    }
 }
 
 #[cfg(test)]
@@ -99,7 +124,11 @@ M1,\"Slow, Heavy Jam\",1:00.000,,,#FF0000
     fn bars_beats_start_gets_reexport_message() {
         let errs = parse("#,Name,Start,End,Length\nM1,Song,9.1.00,,\n").unwrap_err();
         assert_eq!(errs.len(), 1);
-        assert!(errs[0].message.contains("Minutes:Seconds"), "got: {}", errs[0].message);
+        assert!(
+            errs[0].message.contains("Minutes:Seconds"),
+            "got: {}",
+            errs[0].message
+        );
     }
 
     #[test]

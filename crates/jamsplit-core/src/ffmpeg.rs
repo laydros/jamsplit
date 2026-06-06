@@ -30,7 +30,11 @@ pub enum LocateError {
 
 /// Platform-correct executable name.
 fn exe(name: &str) -> String {
-    if cfg!(windows) { format!("{name}.exe") } else { name.to_string() }
+    if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    }
 }
 
 impl FfmpegPaths {
@@ -39,7 +43,11 @@ impl FfmpegPaths {
         let exe_dir = std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(Path::to_path_buf));
-        Self::locate_with(explicit, exe_dir.as_deref(), std::env::var_os("PATH").as_deref())
+        Self::locate_with(
+            explicit,
+            exe_dir.as_deref(),
+            std::env::var_os("PATH").as_deref(),
+        )
     }
 
     /// Injectable core, unit-testable without touching the real environment.
@@ -57,9 +65,14 @@ impl FfmpegPaths {
                 .unwrap_or_else(|| Path::new("."))
                 .join(exe("ffprobe"));
             if !ffprobe.is_file() {
-                return Err(LocateError::FfprobeMissingNextToExplicit(ffmpeg.to_path_buf()));
+                return Err(LocateError::FfprobeMissingNextToExplicit(
+                    ffmpeg.to_path_buf(),
+                ));
             }
-            return Ok(Self { ffmpeg: ffmpeg.to_path_buf(), ffprobe });
+            return Ok(Self {
+                ffmpeg: ffmpeg.to_path_buf(),
+                ffprobe,
+            });
         }
 
         if let Some(dir) = exe_dir {
@@ -126,11 +139,10 @@ pub fn build_song_args(
     total: usize,
     opts: &ExportOptions,
 ) -> Vec<OsString> {
-    let mut args: Vec<OsString> =
-        ["-hide_banner", "-nostdin", "-v", "error", "-y", "-ss"]
-            .iter()
-            .map(OsString::from)
-            .collect();
+    let mut args: Vec<OsString> = ["-hide_banner", "-nostdin", "-v", "error", "-y", "-ss"]
+        .iter()
+        .map(OsString::from)
+        .collect();
     args.push(song.start_seconds.to_string().into());
     if !song.to_eof {
         args.push("-t".into());
@@ -183,7 +195,9 @@ pub struct ExportReport {
 
 impl ExportReport {
     pub fn any_failed(&self) -> bool {
-        self.results.iter().any(|r| matches!(r.status, SongStatus::Failed { .. }))
+        self.results
+            .iter()
+            .any(|r| matches!(r.status, SongStatus::Failed { .. }))
     }
 }
 
@@ -224,7 +238,9 @@ pub fn export(
                 }
                 match std::fs::rename(&part, &target) {
                     Ok(()) => SongStatus::Ok,
-                    Err(e) => SongStatus::Failed { stderr_tail: format!("rename failed: {e}") },
+                    Err(e) => SongStatus::Failed {
+                        stderr_tail: format!("rename failed: {e}"),
+                    },
                 }
             }
             RunOutcome::Failed(stderr_tail) => {
@@ -310,7 +326,6 @@ fn run_one(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -340,17 +355,38 @@ mod tests {
     #[test]
     fn middle_song_args_match_the_design() {
         let s = song(2, "AC/DC Jam", 323.5, 410.0, false);
-        let got = build_song_args(Path::new("/in/jam.wav"), &s, 3, &opts(Some("Practice"), None));
+        let got = build_song_args(
+            Path::new("/in/jam.wav"),
+            &s,
+            3,
+            &opts(Some("Practice"), None),
+        );
         let want: Vec<OsString> = [
-            "-hide_banner", "-nostdin", "-v", "error", "-y",
-            "-ss", "323.5", "-t", "86.5",
-            "-i", "/in/jam.wav",
-            "-map_metadata", "-1",
-            "-c:a", "libmp3lame", "-q:a", "0",
-            "-metadata", "title=AC/DC Jam", // tag keeps the slash — only filenames sanitize
-            "-metadata", "track=2/3",
-            "-metadata", "album=Practice",
-            "-f", "mp3",
+            "-hide_banner",
+            "-nostdin",
+            "-v",
+            "error",
+            "-y",
+            "-ss",
+            "323.5",
+            "-t",
+            "86.5",
+            "-i",
+            "/in/jam.wav",
+            "-map_metadata",
+            "-1",
+            "-c:a",
+            "libmp3lame",
+            "-q:a",
+            "0",
+            "-metadata",
+            "title=AC/DC Jam", // tag keeps the slash — only filenames sanitize
+            "-metadata",
+            "track=2/3",
+            "-metadata",
+            "album=Practice",
+            "-f",
+            "mp3",
             "/out/02 - AC_DC Jam.mp3.part",
         ]
         .iter()
@@ -362,8 +398,16 @@ mod tests {
     #[test]
     fn last_song_omits_duration() {
         let s = song(3, "Closer", 410.0, 600.0, true);
-        let got = build_song_args(Path::new("/in/jam.wav"), &s, 3, &opts(None, Some("The Band")));
-        let joined: Vec<String> = got.iter().map(|o| o.to_string_lossy().into_owned()).collect();
+        let got = build_song_args(
+            Path::new("/in/jam.wav"),
+            &s,
+            3,
+            &opts(None, Some("The Band")),
+        );
+        let joined: Vec<String> = got
+            .iter()
+            .map(|o| o.to_string_lossy().into_owned())
+            .collect();
         assert!(!joined.contains(&"-t".to_string()));
         assert!(joined.contains(&"artist=The Band".to_string()));
         assert!(!joined.iter().any(|a| a.starts_with("album=")));
@@ -409,7 +453,13 @@ mod tests {
         touch(on_path.path(), "ffprobe");
         let path_var = std::env::join_paths([on_path.path()]).unwrap();
         let got = FfmpegPaths::locate_with(None, Some(adjacent.path()), Some(&path_var)).unwrap();
-        assert_eq!(got, FfmpegPaths { ffmpeg: adj_ffmpeg, ffprobe: adj_ffprobe });
+        assert_eq!(
+            got,
+            FfmpegPaths {
+                ffmpeg: adj_ffmpeg,
+                ffprobe: adj_ffprobe
+            }
+        );
     }
 
     #[test]
@@ -449,7 +499,13 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(got, FfmpegPaths { ffmpeg: exp_ffmpeg, ffprobe: exp_ffprobe });
+        assert_eq!(
+            got,
+            FfmpegPaths {
+                ffmpeg: exp_ffmpeg,
+                ffprobe: exp_ffprobe
+            }
+        );
     }
 
     #[test]

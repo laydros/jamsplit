@@ -8,7 +8,9 @@ pub fn ffmpeg_or_skip() -> Option<FfmpegPaths> {
         Ok(paths) => Some(paths),
         Err(_) => {
             if std::env::var_os("JAMSPLIT_TEST_REQUIRE_FFMPEG").is_some() {
-                panic!("ffmpeg is required (JAMSPLIT_TEST_REQUIRE_FFMPEG is set) but was not found");
+                panic!(
+                    "ffmpeg is required (JAMSPLIT_TEST_REQUIRE_FFMPEG is set) but was not found"
+                );
             }
             eprintln!("skipping: ffmpeg not available on this machine");
             None

@@ -22,8 +22,10 @@ fn validate_ok_announces_format_and_exits_zero() {
     let wav = make_wav(&ff, dir.path(), 10.0);
     let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
     jamsplit()
-        .args(["validate", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
+        .args(["validate", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
         .assert()
         .success()
         .stdout(predicates::str::contains("OK"))
@@ -37,8 +39,10 @@ fn validate_duplicate_markers_exits_one() {
     let wav = make_wav(&ff, dir.path(), 10.0);
     let markers = write_markers(dir.path(), "0:00 One\n0:00 Dup\n");
     jamsplit()
-        .args(["validate", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
+        .args(["validate", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
         .assert()
         .code(1)
         .stderr(predicates::str::contains("duplicate"));
@@ -49,7 +53,8 @@ fn validate_missing_audio_exits_one() {
     let dir = tempfile::tempdir().unwrap();
     let markers = write_markers(dir.path(), "0:00 One\n");
     jamsplit()
-        .args(["validate", "--audio", "/no/such.wav", "--markers"]).arg(&markers)
+        .args(["validate", "--audio", "/no/such.wav", "--markers"])
+        .arg(&markers)
         .assert()
         .code(1)
         .stderr(predicates::str::contains("not found").or(predicates::str::contains("ffmpeg")));
@@ -62,8 +67,10 @@ fn inspect_prints_the_track_table() {
     let wav = make_wav(&ff, dir.path(), 10.0);
     let markers = write_markers(dir.path(), "0:00 Opening Jam\n5.0 Closer\n");
     jamsplit()
-        .args(["inspect", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
+        .args(["inspect", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
         .assert()
         .success()
         .stdout(predicates::str::contains("track"))
@@ -78,8 +85,10 @@ fn forced_format_is_respected() {
     // looks like Audacity, forced to plain
     let markers = write_markers(dir.path(), "1.5\t2.5\tA\n");
     jamsplit()
-        .args(["inspect", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
+        .args(["inspect", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
         .args(["--format", "plain"])
         .assert()
         .success()
@@ -94,9 +103,12 @@ fn split_dry_run_writes_nothing() {
     let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
     let outdir = dir.path().join("out");
     jamsplit()
-        .args(["split", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
-        .arg("--outdir").arg(&outdir)
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--outdir")
+        .arg(&outdir)
         .arg("--dry-run")
         .assert()
         .success()
@@ -112,9 +124,12 @@ fn split_produces_files_and_summary() {
     let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
     let outdir = dir.path().join("out");
     jamsplit()
-        .args(["split", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
-        .arg("--outdir").arg(&outdir)
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--outdir")
+        .arg(&outdir)
         .args(["--album", "Practice"])
         .assert()
         .success();
@@ -136,8 +151,10 @@ fn split_default_outdir_is_audio_stem() {
     let markers = write_markers(dir.path(), "0:00 One\n");
     jamsplit()
         .current_dir(dir.path())
-        .args(["split", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
         .assert()
         .success();
     assert!(dir.path().join("fixture").join("01 - One.mp3").is_file());
@@ -153,9 +170,12 @@ fn split_refuses_collisions_without_overwrite() {
     std::fs::create_dir_all(&outdir).unwrap();
     std::fs::write(outdir.join("01 - One.mp3"), b"old").unwrap();
     jamsplit()
-        .args(["split", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
-        .arg("--outdir").arg(&outdir)
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--outdir")
+        .arg(&outdir)
         .assert()
         .code(1)
         .stderr(predicates::str::contains("01 - One.mp3"))
@@ -164,9 +184,12 @@ fn split_refuses_collisions_without_overwrite() {
     assert!(!outdir.join("02 - Two.mp3").exists());
 
     jamsplit()
-        .args(["split", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
-        .arg("--outdir").arg(&outdir)
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--outdir")
+        .arg(&outdir)
         .arg("--overwrite")
         .assert()
         .success();
@@ -183,9 +206,12 @@ fn split_partial_failure_exits_two_and_still_writes_summary() {
     // occupy song 2's .part path with a directory to force a failure
     std::fs::create_dir_all(outdir.join("02 - Two.mp3.part")).unwrap();
     jamsplit()
-        .args(["split", "--audio"]).arg(&wav)
-        .arg("--markers").arg(&markers)
-        .arg("--outdir").arg(&outdir)
+        .args(["split", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .arg("--outdir")
+        .arg(&outdir)
         .assert()
         .code(2);
     let summary: serde_json::Value = serde_json::from_str(

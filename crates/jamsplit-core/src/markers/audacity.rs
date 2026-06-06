@@ -24,7 +24,10 @@ pub fn parse(content: &str) -> Result<Vec<RawMarker>, Vec<ParseError>> {
             (Ok(start_seconds), Ok(_end_ignored)) => {
                 // labels cannot contain tabs, but join defensively
                 let title = fields.get(2..).map(|f| f.join("\t")).unwrap_or_default();
-                markers.push(RawMarker { start_seconds, title: title.trim().to_string() });
+                markers.push(RawMarker {
+                    start_seconds,
+                    title: title.trim().to_string(),
+                });
             }
             _ => errors.push(ParseError {
                 line: line_no,
@@ -32,7 +35,11 @@ pub fn parse(content: &str) -> Result<Vec<RawMarker>, Vec<ParseError>> {
             }),
         }
     }
-    if errors.is_empty() { Ok(markers) } else { Err(errors) }
+    if errors.is_empty() {
+        Ok(markers)
+    } else {
+        Err(errors)
+    }
 }
 
 #[cfg(test)]

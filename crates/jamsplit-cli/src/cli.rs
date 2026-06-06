@@ -8,7 +8,11 @@ use jamsplit_core::report::{build_summary, render_table, write_summary};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "jamsplit", version, about = "Split one long jam recording into per-song MP3s")]
+#[command(
+    name = "jamsplit",
+    version,
+    about = "Split one long jam recording into per-song MP3s"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -86,7 +90,11 @@ pub fn load(common: &CommonArgs) -> Result<Loaded> {
             .collect();
         anyhow!("{}", lines.join("\n"))
     })?;
-    let how = if common.format.is_some() { "forced" } else { "auto-detected" };
+    let how = if common.format.is_some() {
+        "forced"
+    } else {
+        "auto-detected"
+    };
     eprintln!("marker format: {} ({how})", parsed.format);
 
     let audio = probe_audio(&ffmpeg, &common.audio)?;
@@ -97,14 +105,23 @@ pub fn load(common: &CommonArgs) -> Result<Loaded> {
         }
         anyhow!(
             "{}",
-            failure.errors.iter().map(|e| format!("error: {e}")).collect::<Vec<_>>().join("\n")
+            failure
+                .errors
+                .iter()
+                .map(|e| format!("error: {e}"))
+                .collect::<Vec<_>>()
+                .join("\n")
         )
     })?;
     for w in &split_plan.warnings {
         eprintln!("warning: {w}");
     }
 
-    Ok(Loaded { ffmpeg, parsed, plan: split_plan })
+    Ok(Loaded {
+        ffmpeg,
+        parsed,
+        plan: split_plan,
+    })
 }
 
 pub fn validate(args: &CommonArgs) -> Result<()> {
@@ -129,7 +146,11 @@ pub fn split(args: &SplitArgs) -> Result<bool> {
     let loaded = load(&args.common)?;
     let outdir = args.outdir.clone().unwrap_or_else(|| {
         PathBuf::from(
-            args.common.audio.file_stem().map(|s| s.to_os_string()).unwrap_or_else(|| "songs".into()),
+            args.common
+                .audio
+                .file_stem()
+                .map(|s| s.to_os_string())
+                .unwrap_or_else(|| "songs".into()),
         )
     });
 
@@ -140,7 +161,11 @@ pub fn split(args: &SplitArgs) -> Result<bool> {
         }
         for song in &loaded.plan.songs {
             let target = outdir.join(&song.filename);
-            let collides = if target.exists() { "  (would overwrite)" } else { "" };
+            let collides = if target.exists() {
+                "  (would overwrite)"
+            } else {
+                ""
+            };
             println!("would write: {}{collides}", target.display());
         }
         return Ok(true);
@@ -151,7 +176,10 @@ pub fn split(args: &SplitArgs) -> Result<bool> {
             eprintln!("error: {c}");
         }
         eprintln!("pass --overwrite to replace existing files");
-        anyhow::bail!("refusing to overwrite {} existing file(s)", collisions.len());
+        anyhow::bail!(
+            "refusing to overwrite {} existing file(s)",
+            collisions.len()
+        );
     }
 
     let opts = ExportOptions {

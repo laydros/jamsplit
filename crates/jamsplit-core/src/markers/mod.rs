@@ -61,7 +61,8 @@ pub fn parse_timestamp(s: &str) -> Result<f64, String> {
         }
         // only the final component may carry a fraction
         let value: f64 = if is_last {
-            part.parse().map_err(|_| format!("'{part}' is not a number in '{s}'"))?
+            part.parse()
+                .map_err(|_| format!("'{part}' is not a number in '{s}'"))?
         } else {
             part.parse::<u64>()
                 .map_err(|_| format!("'{part}' is not a whole number in '{s}'"))? as f64
@@ -90,7 +91,9 @@ impl std::str::FromStr for MarkerFormat {
             "audacity" => Ok(Self::Audacity),
             "plain" => Ok(Self::Plain),
             "reaper" => Ok(Self::Reaper),
-            other => Err(format!("unknown format '{other}' (expected audacity, plain, or reaper)")),
+            other => Err(format!(
+                "unknown format '{other}' (expected audacity, plain, or reaper)"
+            )),
         }
     }
 }
@@ -133,7 +136,11 @@ pub fn detect_format(content: &str) -> MarkerFormat {
     }
     // Reaper: header row signature
     if let Some(first) = content.lines().find(|l| !l.trim().is_empty()) {
-        if first.trim().to_ascii_lowercase().starts_with("#,name,start") {
+        if first
+            .trim()
+            .to_ascii_lowercase()
+            .starts_with("#,name,start")
+        {
             return MarkerFormat::Reaper;
         }
     }
@@ -221,7 +228,10 @@ mod tests {
 
     #[test]
     fn detects_audacity_shape() {
-        assert_eq!(detect_format("1.0\t1.0\tIntro\n2.0\t3.0\n"), MarkerFormat::Audacity);
+        assert_eq!(
+            detect_format("1.0\t1.0\tIntro\n2.0\t3.0\n"),
+            MarkerFormat::Audacity
+        );
     }
 
     #[test]
@@ -232,12 +242,18 @@ mod tests {
 
     #[test]
     fn detects_reaper_header() {
-        assert_eq!(detect_format("#,Name,Start,End,Length\nM1,Song,0:00,,\n"), MarkerFormat::Reaper);
+        assert_eq!(
+            detect_format("#,Name,Start,End,Length\nM1,Song,0:00,,\n"),
+            MarkerFormat::Reaper
+        );
     }
 
     #[test]
     fn falls_back_to_plain() {
-        assert_eq!(detect_format("0:00 Opening Jam\n5:23 Slow Blues\n"), MarkerFormat::Plain);
+        assert_eq!(
+            detect_format("0:00 Opening Jam\n5:23 Slow Blues\n"),
+            MarkerFormat::Plain
+        );
         // mixed shapes are not Audacity
         assert_eq!(detect_format("1.0\t2.0\tA\n0:00 B\n"), MarkerFormat::Plain);
         assert_eq!(detect_format(""), MarkerFormat::Plain);
@@ -261,7 +277,11 @@ mod tests {
 
     #[test]
     fn utf8_bom_is_stripped_before_detection_and_parsing() {
-        let got = parse_markers("\u{feff}#,Name,Start,End,Length\nM1,Song,0:00.000,,\n", None).unwrap();
+        let got = parse_markers(
+            "\u{feff}#,Name,Start,End,Length\nM1,Song,0:00.000,,\n",
+            None,
+        )
+        .unwrap();
         assert_eq!(got.format, MarkerFormat::Reaper);
         assert_eq!(got.markers.len(), 1);
 
