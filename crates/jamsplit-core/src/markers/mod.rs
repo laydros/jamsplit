@@ -64,9 +64,6 @@ pub fn parse_timestamp(s: &str) -> Result<f64, String> {
             part.parse::<u64>()
                 .map_err(|_| format!("'{part}' is not a whole number in '{s}'"))? as f64
         };
-        if value < 0.0 || part.starts_with('-') {
-            return Err(format!("negative time in '{s}'"));
-        }
         // components after the first must be < 60
         if i > 0 && value >= 60.0 {
             return Err(format!("'{part}' must be below 60 in '{s}'"));
