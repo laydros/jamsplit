@@ -20,7 +20,7 @@
 - Asset names must satisfy the landing page's matcher (`index.html`): per-OS regexes key on `windows`/`macos`/`linux` substrings, and a `cli|source` substring would *deprioritize* an asset. Names used here: `jamsplit-<version>-macos-arm64.zip`, `jamsplit-<version>-linux-x86_64.tar.gz`, `jamsplit-<version>-windows-x86_64.zip`.
 - macOS bundle layout: sidecars live inside `jamsplit.app/Contents/MacOS/` (adjacent to `jamsplit-gui`, so the lookup finds them). The CLI binary ships at the zip root without its own sidecar copies — `README.txt` shows the `--ffmpeg-path` one-liner pointing into the app. This avoids doubling ~150 MB of sidecars.
 - Sidecar pins (exact URL + sha256) live in `scripts/fetch-sidecars.sh` as the single source of truth. Bump procedure documented in `RELEASING.md`.
-- App icon: the platform master is `assets/jamsplit-icon-alpha.png` (RGBA; supersedes the opaque `assets/jamsplit-icon.png`, which fed the landing-page favicons in `assets/icons/`). Platform artifacts (`.icns`, `.ico`) are generated **once locally and committed** — CI never needs icon tooling. The GUI gets a runtime window/taskbar icon on all platforms (deliberately from the opaque web `icon-512.png` — taskbars composite on opaque chrome), the Windows exe gets an embedded resource icon, and the macOS `.app` gets `CFBundleIconFile`. The CLI binary ships without an embedded icon (terminal tool — not worth a build script).
+- App icon: the master is `assets/jamsplit-icon.png` (1300×1300 RGBA; also feeds the landing-page favicons in `assets/icons/`). Platform artifacts (`.icns`, `.ico`) are generated **once locally and committed** — CI never needs icon tooling. The GUI gets a runtime window/taskbar icon on all platforms (embedding the web `icon-512.png`), the Windows exe gets an embedded resource icon, and the macOS `.app` gets `CFBundleIconFile`. The CLI binary ships without an embedded icon (terminal tool — not worth a build script).
 
 **Known wrinkle to preserve in docs:** browsers quarantine downloaded zips; on macOS every extracted file inherits the xattr. Right-click-open approves the *app*, but the first ffmpeg spawn can still be blocked as an unidentified binary on recent macOS. `README.txt` documents `xattr -dr com.apple.quarantine <extracted folder>` as the fix-everything fallback. This friction is the accepted cost of skipping notarization.
 
@@ -138,9 +138,9 @@ git commit -m "Strip release binaries and loosen the eframe pin to 0.33"
 iconset="$(mktemp -d)/jamsplit.iconset"
 mkdir -p "$iconset"
 for s in 16 32 128 256 512; do
-  sips -z $s $s assets/jamsplit-icon-alpha.png --out "$iconset/icon_${s}x${s}.png" >/dev/null
+  sips -z $s $s assets/jamsplit-icon.png --out "$iconset/icon_${s}x${s}.png" >/dev/null
   d=$((s * 2))
-  sips -z $d $d assets/jamsplit-icon-alpha.png --out "$iconset/icon_${s}x${s}@2x.png" >/dev/null
+  sips -z $d $d assets/jamsplit-icon.png --out "$iconset/icon_${s}x${s}@2x.png" >/dev/null
 done
 iconutil -c icns "$iconset" -o assets/icons/jamsplit.icns
 file assets/icons/jamsplit.icns
@@ -151,7 +151,7 @@ Expected: `Mac OS X icon, ...` and the file is a few hundred KB.
 - [ ] **Step 2: Generate the `.ico` (one-time, ImageMagick)**
 
 ```bash
-magick assets/jamsplit-icon-alpha.png -define icon:auto-resize=256,128,64,48,32,16 assets/icons/jamsplit.ico
+magick assets/jamsplit-icon.png -define icon:auto-resize=256,128,64,48,32,16 assets/icons/jamsplit.ico
 file assets/icons/jamsplit.ico
 ```
 

@@ -2,9 +2,6 @@
 
 /// Decode the embedded icon for the window/taskbar/dock. The `.icns`/`.ico`
 /// artifacts cover Finder and Explorer; this covers the running window.
-/// Deliberately the opaque web `icon-512.png` rather than the alpha master:
-/// taskbars composite small icons on opaque chrome, where a filled square
-/// reads cleaner than transparent corners.
 fn load_icon() -> eframe::egui::IconData {
     let image = image::load_from_memory(include_bytes!("../../../assets/icons/icon-512.png"))
         .expect("embedded icon is a valid PNG")
