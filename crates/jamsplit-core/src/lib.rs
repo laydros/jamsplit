@@ -3,3 +3,4 @@ pub mod audio;
 pub mod ffmpeg;
 pub mod markers;
 pub mod plan;
+pub mod report;
