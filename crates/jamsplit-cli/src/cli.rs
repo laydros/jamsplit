@@ -28,8 +28,27 @@ pub enum Command {
     Inspect(CommonArgs),
 }
 
-fn parse_format(s: &str) -> Result<MarkerFormat, String> {
-    s.parse()
+/// CLI-side format selector. `Auto` maps to `None` (auto-detect);
+/// the named variants map to the corresponding `MarkerFormat`.
+/// `clap::ValueEnum` gives lowercase names and lists them in `--help`.
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+pub enum FormatArg {
+    Auto,
+    Audacity,
+    Plain,
+    Reaper,
+}
+
+impl FormatArg {
+    /// Convert to the `Option<MarkerFormat>` that `parse_markers` expects.
+    pub fn into_marker_format(self) -> Option<MarkerFormat> {
+        match self {
+            FormatArg::Auto => None,
+            FormatArg::Audacity => Some(MarkerFormat::Audacity),
+            FormatArg::Plain => Some(MarkerFormat::Plain),
+            FormatArg::Reaper => Some(MarkerFormat::Reaper),
+        }
+    }
 }
 
 #[derive(Args)]
@@ -40,9 +59,9 @@ pub struct CommonArgs {
     /// Marker file (audacity, plain, or reaper format)
     #[arg(long)]
     pub markers: PathBuf,
-    /// Force the marker format instead of auto-detecting
-    #[arg(long, value_parser = parse_format)]
-    pub format: Option<MarkerFormat>,
+    /// Force the marker format instead of auto-detecting [auto|audacity|plain|reaper]
+    #[arg(long)]
+    pub format: Option<FormatArg>,
     /// Path to an ffmpeg binary (ffprobe must sit next to it)
     #[arg(long)]
     pub ffmpeg_path: Option<PathBuf>,
@@ -83,14 +102,15 @@ pub fn load(common: &CommonArgs) -> Result<Loaded> {
 
     let content = std::fs::read_to_string(&common.markers)
         .with_context(|| format!("could not read marker file {}", common.markers.display()))?;
-    let parsed = parse_markers(&content, common.format).map_err(|errs| {
+    let marker_format = common.format.and_then(|f| f.into_marker_format());
+    let parsed = parse_markers(&content, marker_format).map_err(|errs| {
         let lines: Vec<String> = errs
             .iter()
             .map(|e| format!("{}: {e}", common.markers.display()))
             .collect();
         anyhow!("{}", lines.join("\n"))
     })?;
-    let how = if common.format.is_some() {
+    let how = if marker_format.is_some() {
         "forced"
     } else {
         "auto-detected"

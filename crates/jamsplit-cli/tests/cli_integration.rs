@@ -96,6 +96,37 @@ fn forced_format_is_respected() {
 }
 
 #[test]
+fn format_auto_behaves_like_omitting_format() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let markers = write_markers(dir.path(), "0:00 One\n5.0 Two\n");
+    // --format auto should auto-detect (plain) and succeed just like no --format
+    jamsplit()
+        .args(["validate", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .args(["--format", "auto"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("OK"))
+        .stderr(predicates::str::contains("plain"));
+}
+
+#[test]
+fn split_help_lists_all_format_values() {
+    jamsplit()
+        .args(["split", "--help"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("auto"))
+        .stdout(predicates::str::contains("audacity"))
+        .stdout(predicates::str::contains("plain"))
+        .stdout(predicates::str::contains("reaper"));
+}
+
+#[test]
 fn split_dry_run_writes_nothing() {
     let Some(ff) = ffmpeg_or_skip() else { return };
     let dir = tempfile::tempdir().unwrap();
