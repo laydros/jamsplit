@@ -32,17 +32,19 @@ None block shipping. The manual checklist run happened 2026-06-06: everything pa
 
 ## Next milestone
 
-- M3 — release packaging CI (out of v1 scope; see design doc).
-  - Decisions (2026-06-06): targets are macOS arm64, Linux x86_64, Windows
-    x86_64. No code signing or notarization — macOS users get the
-    right-click-open workaround (the landing page already documents it),
-    Windows users click through SmartScreen.
-  - Plain test CI (fmt + clippy + tests on all three OSes) is in
-    `.github/workflows/ci.yml`.
+M3 release packaging is implemented (plan: `docs/superpowers/plans/2026-06-06-m3-release-packaging.md`).
+Remaining before v1.0:
 
-## Landing page
-
-- After M3 ships its first release: revisit `index.html`. The ffmpeg
-  install-hints section becomes optional once zips bundle ffmpeg, and release
-  asset names must match the page's per-OS download matcher (it keys on
+- Cut the first tagged release (follow `RELEASING.md`).
+- After the release publishes: revisit `index.html`. The ffmpeg install-hints
+  section becomes optional once zips bundle ffmpeg, and release asset names
+  must match the page's per-OS download matcher (it keys on
   windows/macos/linux substrings and prefers names containing gui/desktop/app).
+
+## Future (post-M3 candidates)
+
+- wav concat helper: Zoom recorders split long sessions at the 2/4 GB
+  boundary; the design doc punts to a documented ffmpeg concat one-liner.
+  A `jamsplit concat`-style helper (CLI subcommand and/or GUI affordance)
+  would remove that manual step. Out of v1 scope per the design doc;
+  discuss scope with Jason before starting.

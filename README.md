@@ -3,6 +3,13 @@
 Split one long jam-session recording (usually a WAV from a Zoom recorder) into
 one MP3 per song, using a marker file with song start times and titles.
 
+## Download
+
+Prebuilt bundles for macOS (Apple Silicon), Linux x86_64, and Windows
+x86_64 — ffmpeg included — are on the
+[releases page](https://github.com/laydros/jamsplit/releases/latest), or
+via the [project site](https://laydros.github.io/jamsplit/).
+
 ## Requirements
 
 - ffmpeg and ffprobe. jamsplit looks for them in this order: the
