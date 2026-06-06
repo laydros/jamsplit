@@ -6,3 +6,6 @@ members = ["crates/jamsplit-core", "crates/jamsplit-cli", "crates/jamsplit-gui"]
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0-only"
+
+[profile.release]
+strip = "symbols"

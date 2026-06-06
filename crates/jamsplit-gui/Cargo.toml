@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-eframe = "0.33.3"
+eframe = "0.33"
 jamsplit-core = { path = "../jamsplit-core" }
 open = "5.3.5"
 rfd = "0.17.2"
