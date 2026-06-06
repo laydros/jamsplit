@@ -8,12 +8,10 @@ jamsplit splits one long jam-session recording (usually a Zoom-recorder WAV) int
 
 ## Status (2026-06-05)
 
-Design and M1 implementation plan complete; no code yet. Next step: execute
-`docs/superpowers/plans/2026-06-05-jamsplit-m1-engine-cli.md` (task-by-task,
-per the plan header). The M2 GUI plan gets written after M1 lands, against
-the real core API.
+M1 (engine + CLI) implemented. Next: M2 (egui GUI) — needs its own
+implementation plan written against the real core API.
 
-- M1 - engine + CLI (covers every acceptance criterion in the v1 spec)
+- M1 - engine + CLI: done
 - M2 - egui GUI; nothing ships to users before M2 is done
 - M3 - release packaging CI (out of v1 scope)
 
@@ -38,4 +36,9 @@ Three-crate workspace: `jamsplit-core` (lib, all logic), `jamsplit-cli` (clap bi
 
 ## Commands
 
-None yet - no code exists. Update this section when the workspace lands (standard cargo workspace commands). Integration tests will require ffmpeg and auto-skip with a notice when it's absent locally; they are mandatory in CI.
+- `cargo test` — full suite. ffmpeg-dependent integration tests skip (with a
+  notice) when ffmpeg is absent; `JAMSPLIT_TEST_REQUIRE_FFMPEG=1` makes
+  skips fail (CI mode).
+- `cargo test -p jamsplit-core <name>` — one test.
+- `cargo run -p jamsplit-cli -- split --audio x.wav --markers m.txt` — run the CLI.
+- `cargo fmt --all` and `cargo clippy --workspace` before finishing a task.
