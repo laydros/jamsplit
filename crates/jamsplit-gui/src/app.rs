@@ -46,9 +46,10 @@ impl JamsplitApp {
         }
     }
 
-    /// Nothing is shown while ffmpeg is found. On a locate failure the
-    /// error (with install hints) appears with a picker — the GUI's
-    /// equivalent of --ffmpeg-path.
+    /// Handles the ffmpeg failure UI only. When ffmpeg is found, the resolved
+    /// path is shown in the footer. On a locate failure, this method renders
+    /// the error (with install hints) and a picker — the GUI's equivalent of
+    /// --ffmpeg-path.
     fn ui_ffmpeg(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let Err(message) = self.state.ffmpeg.clone() else {
             return;
@@ -322,6 +323,15 @@ impl eframe::App for JamsplitApp {
                 ui.label(format!("jamsplit {}", env!("CARGO_PKG_VERSION")));
                 ui.separator();
                 ui.hyperlink_to("Website", "https://laydros.github.io/jamsplit/");
+                if let Ok(paths) = &self.state.ffmpeg {
+                    ui.separator();
+                    let path = paths.ffmpeg.display().to_string();
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(format!("ffmpeg: {path}")).weak())
+                            .truncate(),
+                    )
+                    .on_hover_text(path);
+                }
             });
         });
         egui::CentralPanel::default().show(ctx, |ui| {
