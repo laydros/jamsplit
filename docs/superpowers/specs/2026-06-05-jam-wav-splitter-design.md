@@ -91,7 +91,8 @@ Behavior:
 
 - Filename: `NN - Title.mp3`. `NN` is the 1-based track number zero-padded to `max(2, digits(song_count))`.
 - Sanitization (filenames only): replace `/ \ : * ? " < > |` and ASCII control characters with `_` (union of all-OS rules — these files get shared across platforms), collapse consecutive `_`, trim leading dots and trailing dots/spaces. A title that sanitizes to nothing falls back to `Untitled Song N`.
-- Tags carry the **original, unsanitized** title: `title`, `track` = `N/total`, plus `album` and `artist` when given.
+- Blank marker titles resolve to `Untitled Song N` at plan time, and that resolved title is used **everywhere** — MP3 `title` tag and filename alike (per the v1 spec).
+- Tags carry the resolved title **without filename sanitization** (`AC/DC Jam` keeps its slash in the tag): `title`, `track` = `N/total`, plus `album` and `artist` when given. Only filenames sanitize; in the rare case a non-blank title sanitizes to nothing (e.g. dots-only), the filename falls back to `Untitled Song N` while the tag keeps what the user wrote.
 - Within-run path collisions are impossible by construction: the track-number prefix is unique per song and identically padded, so identical sanitized titles (or multiple `Untitled Song N` fallbacks) still produce distinct filenames, and `.part` paths inherit that uniqueness. The collision check against *existing* files covers the final `.mp3` paths; stale `.part` files left behind by an interrupted run are not collisions — they are overwritten freely, since a `.part` is never finished output.
 
 ### ffmpeg invocation (per song)
@@ -131,7 +132,7 @@ All parsers normalize to `RawMarker { start_seconds: f64, title: String }` (titl
 
 ### Auto-detection
 
-Order: Audacity (strict `float TAB float` line shape, every non-blank line) → Reaper (CSV header signature) → plain (fallback). The ordering is a deliberate tiebreak: every Audacity file is also *parseable* as plain (plain accepts any rest-of-line as a title), so the strict shape must be tested first. The converse edge case exists and is accepted: a hand-written plain file using tab separators whose titles parse as bare floats (`12<TAB>34`) is genuinely indistinguishable from Audacity labels and will be detected as Audacity. Mitigation: detection results are always announced, and `--format plain` overrides. An ambiguity *error* was considered and rejected — because Audacity files always also parse as plain, it would fire on every genuine Audacity export.
+Order: Audacity (strict `float TAB float` line shape on every non-blank line, excluding `\`-prefixed spectral lines — detection skips exactly what the parser skips) → Reaper (CSV header signature) → plain (fallback). The ordering is a deliberate tiebreak: every Audacity file is also *parseable* as plain (plain accepts any rest-of-line as a title), so the strict shape must be tested first. The converse edge case exists and is accepted: a hand-written plain file using tab separators whose titles parse as bare floats (`12<TAB>34`) is genuinely indistinguishable from Audacity labels and will be detected as Audacity. Mitigation: detection results are always announced, and `--format plain` overrides. An ambiguity *error* was considered and rejected — because Audacity files always also parse as plain, it would fire on every genuine Audacity export.
 
 ## Validation rules (all in `plan()`)
 
