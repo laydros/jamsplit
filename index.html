@@ -59,9 +59,22 @@
     }
 
     .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
       font-weight: 800;
       letter-spacing: 0;
       font-size: 1.1rem;
+    }
+
+    .brand img {
+      width: 36px;
+      height: 36px;
+      display: block;
+      padding: 1px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
     }
 
     .nav {
@@ -106,7 +119,21 @@
     }
 
     .download-panel h2 {
-      margin-top: 0;
+      margin: 0;
+    }
+
+    .download-heading {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .download-heading img {
+      width: 44px;
+      height: 44px;
+      display: block;
+      border-radius: 8px;
     }
 
     .download-grid {
@@ -280,7 +307,10 @@
   <header>
     <div class="wrap">
       <div class="topbar">
-        <div class="brand">jamsplit</div>
+        <div class="brand">
+          <img src="assets/icons/icon-512.png" alt="" width="36" height="36">
+          <span>jamsplit</span>
+        </div>
         <nav class="nav" aria-label="Page navigation">
           <a href="#download">Download</a>
           <a href="#markers">Make markers</a>
@@ -296,7 +326,10 @@
         </div>
 
         <aside class="download-panel" id="download" aria-label="Downloads">
-          <h2>Download</h2>
+          <div class="download-heading">
+            <img src="assets/icons/icon-512.png" alt="" width="44" height="44">
+            <h2>Download</h2>
+          </div>
           <div class="download-grid">
             <a class="download-button" data-os="windows" href="https://github.com/laydros/jamsplit/releases/latest">
               Windows <small>loading...</small>
