@@ -138,14 +138,50 @@ fn parse_document(doc: &roxmltree::Document) -> Result<Vec<RawMarker>, Vec<Parse
 }
 
 /// Read and validate `Project > Transport > Tempo`, returning a positive bpm.
-/// Used only when markers are in beats. Defined fully in Task 4.
+/// Used only when markers are in beats. Refuses a missing tempo, a non-`bpm`
+/// unit, or a value that is not finite and strictly positive.
 fn resolve_bpm(
     doc: &roxmltree::Document,
     project: &roxmltree::Node,
     markers_el: &roxmltree::Node,
 ) -> Result<f64, Vec<ParseError>> {
-    let _ = (doc, project, markers_el);
-    Ok(120.0)
+    let row_of = |node: &roxmltree::Node| doc.text_pos_at(node.range().start).row as usize;
+
+    let tempo = project
+        .children()
+        .find(|n| n.has_tag_name("Transport"))
+        .and_then(|t| t.children().find(|n| n.has_tag_name("Tempo")));
+    let tempo = match tempo {
+        Some(t) => t,
+        None => {
+            return Err(vec![ParseError {
+                line: row_of(markers_el),
+                message: "markers are in beats but the project has no <Transport><Tempo>"
+                    .to_string(),
+            }])
+        }
+    };
+
+    match tempo.attribute("unit") {
+        Some("bpm") => {}
+        other => {
+            return Err(vec![ParseError {
+                line: row_of(&tempo),
+                message: format!(
+                    "tempo unit is {:?}, expected \"bpm\"",
+                    other.unwrap_or("missing")
+                ),
+            }])
+        }
+    }
+
+    match tempo.attribute("value").map(str::parse::<f64>) {
+        Some(Ok(v)) if v.is_finite() && v > 0.0 => Ok(v),
+        _ => Err(vec![ParseError {
+            line: row_of(&tempo),
+            message: "tempo value is missing or not a positive number".to_string(),
+        }]),
+    }
 }
 
 #[cfg(test)]
@@ -201,5 +237,62 @@ mod tests {
         </Markers></Arrangement></Project>"#;
         let got = parse(&dawproject(xml)).unwrap();
         assert_eq!(got[0].title, "");
+    }
+
+    const BEATS_XML: &str = r#"<Project>
+  <Transport><Tempo unit="bpm" value="120.0"/></Transport>
+  <Arrangement><Markers timeUnit="beats">
+    <Marker time="0" name="One"/>
+    <Marker time="4" name="Two"/>
+  </Markers></Arrangement>
+</Project>"#;
+
+    #[test]
+    fn converts_beats_to_seconds_with_tempo() {
+        // 120 bpm => 1 beat = 0.5s; beat 4 => 2.0s.
+        let got = parse(&dawproject(BEATS_XML)).unwrap();
+        assert_eq!(got[0].start_seconds, 0.0);
+        assert_eq!(got[1].start_seconds, 2.0);
+        assert_eq!(got[1].title, "Two");
+    }
+
+    #[test]
+    fn beats_without_tempo_is_refused() {
+        let xml = r#"<Project><Arrangement><Markers timeUnit="beats">
+          <Marker time="4" name="X"/>
+        </Markers></Arrangement></Project>"#;
+        let errs = parse(&dawproject(xml)).unwrap_err();
+        assert_eq!(errs.len(), 1);
+        assert!(errs[0].message.contains("no <Transport><Tempo>"));
+    }
+
+    #[test]
+    fn non_bpm_tempo_unit_is_refused() {
+        let xml = r#"<Project>
+          <Transport><Tempo unit="linear" value="0.5"/></Transport>
+          <Arrangement><Markers timeUnit="beats">
+            <Marker time="4" name="X"/>
+          </Markers></Arrangement></Project>"#;
+        let errs = parse(&dawproject(xml)).unwrap_err();
+        assert!(errs[0].message.contains("bpm"));
+    }
+
+    #[test]
+    fn non_positive_or_nonfinite_bpm_is_refused() {
+        for bad in ["0", "-120", "nan", "inf"] {
+            let xml = format!(
+                r#"<Project>
+                  <Transport><Tempo unit="bpm" value="{bad}"/></Transport>
+                  <Arrangement><Markers timeUnit="beats">
+                    <Marker time="4" name="X"/>
+                  </Markers></Arrangement></Project>"#
+            );
+            let errs = parse(&dawproject(&xml)).unwrap_err();
+            assert!(
+                errs[0].message.contains("positive"),
+                "value {bad:?} should be refused, got: {}",
+                errs[0].message
+            );
+        }
     }
 }
