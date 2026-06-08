@@ -96,9 +96,13 @@ Steps:
 6. Find `Arrangement > Markers`. Missing or no `<Marker>` children → an error
    (no markers to split on). Read `timeUnit` from the `<Markers>` element.
    Absent → `ParseError` ("could not determine marker time unit").
-7. If `timeUnit="beats"`, read `Project > Transport > Tempo` `value`. Missing →
-   `ParseError` ("markers are in beats but the project has no tempo"). Reject a
-   non-positive bpm.
+7. If `timeUnit="beats"`, read `Project > Transport > Tempo`. Require
+   `unit="bpm"` and a finite, strictly-positive `value`. `Tempo` is a
+   `realParameter` in the schema, whose `unit` enum permits values other than
+   `bpm`, and roxmltree does not schema-validate — so a missing/non-`bpm` unit
+   or a non-finite/non-positive value is refused with a clear `ParseError`
+   rather than blindly multiplied. Missing `Tempo` element → `ParseError`
+   ("markers are in beats but the project has no tempo").
 8. For each `<Marker>`: read required `time` (reject missing/non-numeric/negative
    with a per-marker `ParseError` carrying that element's source line), read
    optional `name` (default empty), convert to seconds per the unit, push a
@@ -163,7 +167,8 @@ the rest of jamsplit. Cases with their own clear message:
 - No `Arrangement`, or no `Markers`/`<Marker>` elements (nothing to split on).
 - `TempoAutomation` present (tempo changes unsupported).
 - `timeUnit` absent (unknown unit — refuse, don't guess).
-- `timeUnit="beats"` with no `Transport/Tempo`, or non-positive bpm.
+- `timeUnit="beats"` with no `Transport/Tempo`, a non-`bpm` tempo unit, or a
+  non-finite/non-positive bpm value.
 - Per-marker: missing/non-numeric/negative `time`.
 
 Downstream validation (duplicate times, out-of-bounds vs. audio duration,
@@ -194,14 +199,23 @@ Routing tests in `markers/mod.rs`:
 - Forcing `Dawproject` on non-zip bytes errors cleanly.
 - Forcing a text format / auto-detecting on text bytes still works (regression).
 
-Integration tests: extend the CLI and GUI integration suites with a temp
-`.dawproject` file run through `load` / `run_preview` end to end (no ffmpeg
-needed for the parse/plan portion; reuse the existing ffmpeg-skip conventions
-where probing is involved).
+No-ffmpeg coverage stays at the core level: `dawproject::parse` and
+`parse_markers_bytes` are pure parsing/routing and need no ffmpeg, so the whole
+branch/refusal matrix above runs unconditionally. The CLI and GUI end-to-end
+paths cannot be ffmpeg-free — `cli::load` calls `FfmpegPaths::locate` and
+`probe_audio`, and `worker::run_preview` calls `probe_audio`. So the
+temp-`.dawproject` end-to-end test added to each frontend's integration suite
+gates on the existing `ffmpeg_or_skip()` helper (the convention the other
+integration tests already use; `JAMSPLIT_TEST_REQUIRE_FFMPEG=1` turns a skip
+into a CI failure). Those end-to-end tests prove the bytes-read + routing wiring
+reaches `dawproject::parse`; the parsing behavior itself is covered by the
+no-ffmpeg core tests.
 
 ## Documentation and web page
 
-Treated as part of the change, not a follow-up:
+Treated as part of the change, not a follow-up.
+
+User-facing docs and web page:
 
 - `MARKERS.md` — new "Bitwig / DAWproject" section: how to export
   (`File > Export DAWproject` in Bitwig), and the requirements (constant tempo,
@@ -211,7 +225,20 @@ Treated as part of the change, not a follow-up:
 - `index.html` (landing page) — add Bitwig/DAWproject to the format mentions
   (lede ~line 332, the "where each song begins" intro ~371, the per-format
   list with Audacity/REAPER/Plain Text ~386–411, and the format note ~427).
-- `CLAUDE.md` — add `dawproject` to the marker-format references.
+
+Source-of-truth docs (read before any work, per `CLAUDE.md` and `AGENTS.md` —
+leaving them stale would make the repo's own guidance contradict the code):
+
+- `docs/superpowers/specs/2026-06-05-jamsplit-design.md` — this is the *living*
+  validated design. Update it for real: add a DAWproject subsection to "Marker
+  formats", add `dawproject` to the `--format auto|audacity|plain|reaper`
+  synopsis, and add `zip` + `roxmltree` to the core dependency list.
+- `docs/spec.md` — this is the **v1 requirements** spec, and DAWproject was not a
+  v1 requirement. Do **not** rewrite its required-formats list (that would
+  falsely retcon v1 scope). Instead add a short "Post-v1 additions" note
+  pointing to this design doc, so a reader is not misled by the v1 format list.
+- `CLAUDE.md` and `AGENTS.md` — add `dawproject` to their marker-format
+  references / command lists.
 
 ## Open questions / risks
 
