@@ -94,7 +94,7 @@ impl JamsplitApp {
             if ui.button("Choose…").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_title("Select the marker file")
-                    .add_filter("markers", &["txt", "csv"])
+                    .add_filter("markers", &["txt", "csv", "dawproject"])
                     .add_filter("all files", &["*"])
                     .pick_file()
                 {
