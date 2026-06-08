@@ -1,7 +1,7 @@
 mod common;
 
 use assert_cmd::Command;
-use common::{ffmpeg_or_skip, make_wav};
+use common::{ffmpeg_or_skip, make_dawproject, make_wav};
 use std::path::Path;
 
 fn write_markers(dir: &Path, content: &str) -> std::path::PathBuf {
@@ -156,7 +156,8 @@ fn split_help_lists_all_format_values() {
         .stdout(predicates::str::contains("auto"))
         .stdout(predicates::str::contains("audacity"))
         .stdout(predicates::str::contains("plain"))
-        .stdout(predicates::str::contains("reaper"));
+        .stdout(predicates::str::contains("reaper"))
+        .stdout(predicates::str::contains("dawproject"));
 }
 
 #[test]
@@ -370,6 +371,27 @@ fn dry_run_with_overwrite_shows_would_overwrite_label() {
         .stdout(predicates::str::contains("(would overwrite)"));
     // dry-run must not touch any files
     assert_eq!(std::fs::read(outdir.join("01 - One.mp3")).unwrap(), b"old");
+}
+
+#[test]
+fn validate_reads_a_dawproject_file() {
+    let Some(ff) = ffmpeg_or_skip() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let wav = make_wav(&ff, dir.path(), 10.0);
+    let project_xml = r#"<Project><Arrangement><Markers timeUnit="seconds">
+        <Marker time="0.0" name="Opener"/>
+        <Marker time="5.0" name="Closer"/>
+    </Markers></Arrangement></Project>"#;
+    let markers = make_dawproject(dir.path(), project_xml);
+    jamsplit()
+        .args(["validate", "--audio"])
+        .arg(&wav)
+        .arg("--markers")
+        .arg(&markers)
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("OK: 2 songs"))
+        .stderr(predicates::str::contains("dawproject"));
 }
 
 #[cfg(unix)]

@@ -2,7 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use clap::{Args, Parser, Subcommand};
 use jamsplit_core::audio::probe_audio;
 use jamsplit_core::ffmpeg::{export, CancelToken, ExportOptions, FfmpegPaths, SongStatus};
-use jamsplit_core::markers::{parse_markers, MarkerFormat, ParsedMarkers};
+use jamsplit_core::markers::{parse_markers_bytes, MarkerFormat, ParsedMarkers};
 use jamsplit_core::plan::{check_collisions, plan, SplitPlan};
 use jamsplit_core::report::{build_summary, render_table, write_summary};
 use std::path::PathBuf;
@@ -37,16 +37,18 @@ pub enum FormatArg {
     Audacity,
     Plain,
     Reaper,
+    Dawproject,
 }
 
 impl FormatArg {
-    /// Convert to the `Option<MarkerFormat>` that `parse_markers` expects.
+    /// Convert to the `Option<MarkerFormat>` that `parse_markers_bytes` expects.
     pub fn into_marker_format(self) -> Option<MarkerFormat> {
         match self {
             FormatArg::Auto => None,
             FormatArg::Audacity => Some(MarkerFormat::Audacity),
             FormatArg::Plain => Some(MarkerFormat::Plain),
             FormatArg::Reaper => Some(MarkerFormat::Reaper),
+            FormatArg::Dawproject => Some(MarkerFormat::Dawproject),
         }
     }
 }
@@ -56,10 +58,10 @@ pub struct CommonArgs {
     /// Input audio file (WAV expected; anything ffprobe reads is accepted)
     #[arg(long)]
     pub audio: PathBuf,
-    /// Marker file (audacity, plain, or reaper format)
+    /// Marker file (audacity, plain, reaper, or a Bitwig .dawproject)
     #[arg(long)]
     pub markers: PathBuf,
-    /// Force the marker format instead of auto-detecting [auto|audacity|plain|reaper]
+    /// Force the marker format instead of auto-detecting [auto|audacity|plain|reaper|dawproject]
     #[arg(long)]
     pub format: Option<FormatArg>,
     /// Path to an ffmpeg binary (ffprobe must sit next to it)
@@ -100,10 +102,10 @@ pub struct Loaded {
 pub fn load(common: &CommonArgs) -> Result<Loaded> {
     let ffmpeg = FfmpegPaths::locate(common.ffmpeg_path.as_deref())?;
 
-    let content = std::fs::read_to_string(&common.markers)
+    let bytes = std::fs::read(&common.markers)
         .with_context(|| format!("could not read marker file {}", common.markers.display()))?;
     let marker_format = common.format.and_then(|f| f.into_marker_format());
-    let parsed = parse_markers(&content, marker_format).map_err(|errs| {
+    let parsed = parse_markers_bytes(&bytes, marker_format).map_err(|errs| {
         let lines: Vec<String> = errs
             .iter()
             .map(|e| format!("{}: {e}", common.markers.display()))
