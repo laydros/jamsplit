@@ -329,7 +329,7 @@
       <div class="hero">
         <div>
           <h1>Split one long jam recording into song files.</h1>
-          <p class="lede">jamsplit takes a long WAV or other audio file plus a marker file from Audacity, REAPER, or a plain text list, then exports numbered MP3s like <code>01 - Opening Jam.mp3</code>.</p>
+          <p class="lede">jamsplit takes a long WAV or other audio file plus a marker file from Audacity, REAPER, Bitwig, or a plain text list, then exports numbered MP3s like <code>01 - Opening Jam.mp3</code>.</p>
         </div>
 
         <aside class="download-panel" id="download" aria-label="Downloads">
@@ -368,7 +368,7 @@
         </div>
         <div class="card">
           <h3>2. Mark the song starts</h3>
-          <p>In Audacity, REAPER, or a plain text file, put a marker where each song begins. The next marker ends the current song.</p>
+          <p>In Audacity, REAPER, Bitwig, or a plain text file, put a marker where each song begins. The next marker ends the current song.</p>
         </div>
         <div class="card">
           <h3>3. Split</h3>
@@ -408,6 +408,17 @@
         </div>
 
         <div class="card">
+          <h3>Bitwig</h3>
+          <ol>
+            <li>Open the session in Bitwig Studio.</li>
+            <li>Add a cue marker at each song start and name it.</li>
+            <li>Keep one constant tempo — no tempo changes.</li>
+            <li>Use <strong>File > Export DAWproject</strong>.</li>
+          </ol>
+          <p class="note">Use the exported <code>.dawproject</code> file as the jamsplit marker file. Only markers are imported, not the audio.</p>
+        </div>
+
+        <div class="card">
           <h3>Plain Text</h3>
           <p>Make a text file with one start time and title per line.</p>
           <pre><code>0:00 Opening Jam
@@ -423,8 +434,8 @@
       <ol class="steps">
         <li>Extract the download. On macOS, open <strong>jamsplit.app</strong> — right-click and choose <strong>Open</strong> the first time. On Windows and Linux, run <strong>jamsplit-gui</strong>.</li>
         <li>Choose the audio file. WAV from a Zoom recorder is the normal case, but anything ffprobe can read is accepted.</li>
-        <li>Choose the marker file from Audacity, REAPER, or your plain text list.</li>
-        <li>Leave the format on <strong>auto</strong> unless you need to force <strong>audacity</strong>, <strong>reaper</strong>, or <strong>plain</strong>.</li>
+        <li>Choose the marker file from Audacity, REAPER, Bitwig (.dawproject), or your plain text list.</li>
+        <li>Leave the format on <strong>auto</strong> unless you need to force <strong>audacity</strong>, <strong>reaper</strong>, <strong>plain</strong>, or <strong>dawproject</strong>.</li>
         <li>Optional: fill in album and artist tags, and choose an output folder.</li>
         <li>Check the preview table. If it looks right, click <strong>Split</strong>.</li>
       </ol>
