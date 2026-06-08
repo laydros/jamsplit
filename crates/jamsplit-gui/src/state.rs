@@ -33,7 +33,7 @@ impl FormatChoice {
         }
     }
 
-    /// Convert to the `Option<MarkerFormat>` that `parse_markers` expects.
+    /// Convert to the `Option<MarkerFormat>` that `parse_markers_bytes` expects.
     pub fn into_marker_format(self) -> Option<MarkerFormat> {
         match self {
             FormatChoice::Auto => None,
