@@ -6,10 +6,10 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 jamsplit splits one long jam-session recording (usually a Zoom-recorder WAV) into per-song MP3s using a human-made marker file. Rust workspace; ffmpeg/ffprobe do all audio work as external subprocesses.
 
-## Status (2026-06-06)
+## Status (2026-06-08)
 
-All milestones are done; v0.2.0 is released (Windows wgpu/WARP renderer
-fix over v0.1.0). The plan files
+All milestones are done; v0.3.0 is released (Bitwig `.dawproject` marker
+import, over v0.2.0's Windows wgpu/WARP renderer fix). The plan files
 `docs/superpowers/plans/2026-06-06-m2-egui-gui.md` and
 `docs/superpowers/plans/2026-06-06-m3-release-packaging.md` are the historical
 records of the M2 and M3 design decisions. `RELEASING.md` is the release
