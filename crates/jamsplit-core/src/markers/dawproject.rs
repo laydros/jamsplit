@@ -51,6 +51,14 @@ fn parse_document(doc: &roxmltree::Document) -> Result<Vec<RawMarker>, Vec<Parse
         }
     };
 
+    if let Some(ta) = arrangement.children().find(|n| n.has_tag_name("TempoAutomation")) {
+        return Err(vec![ParseError {
+            line: row_of(&ta),
+            message: "tempo automation is not supported; jamsplit needs a single constant tempo"
+                .to_string(),
+        }]);
+    }
+
     let markers_el = match arrangement.children().find(|n| n.has_tag_name("Markers")) {
         Some(m) => m,
         None => {
@@ -294,5 +302,78 @@ mod tests {
                 errs[0].message
             );
         }
+    }
+
+    #[test]
+    fn tempo_automation_is_refused() {
+        let xml = r#"<Project>
+          <Transport><Tempo unit="bpm" value="120.0"/></Transport>
+          <Arrangement>
+            <TempoAutomation/>
+            <Markers timeUnit="seconds"><Marker time="0.0" name="X"/></Markers>
+          </Arrangement></Project>"#;
+        let errs = parse(&dawproject(xml)).unwrap_err();
+        assert!(errs[0].message.contains("tempo automation"));
+    }
+
+    #[test]
+    fn missing_time_unit_is_refused() {
+        let xml = r#"<Project><Arrangement><Markers>
+          <Marker time="0.0" name="X"/>
+        </Markers></Arrangement></Project>"#;
+        let errs = parse(&dawproject(xml)).unwrap_err();
+        assert!(errs[0].message.contains("timeUnit"));
+    }
+
+    #[test]
+    fn no_markers_is_an_error() {
+        let xml = r#"<Project><Arrangement>
+          <Markers timeUnit="seconds"></Markers>
+        </Arrangement></Project>"#;
+        let errs = parse(&dawproject(xml)).unwrap_err();
+        assert!(errs[0].message.contains("no <Marker>"));
+    }
+
+    #[test]
+    fn no_arrangement_is_an_error() {
+        let errs = parse(&dawproject("<Project></Project>")).unwrap_err();
+        assert!(errs[0].message.contains("Arrangement"));
+    }
+
+    #[test]
+    fn missing_markers_element_is_an_error() {
+        let errs = parse(&dawproject("<Project><Arrangement></Arrangement></Project>")).unwrap_err();
+        assert!(errs[0].message.contains("no <Markers>"));
+    }
+
+    #[test]
+    fn not_a_zip_is_an_error() {
+        let errs = parse(b"this is not a zip").unwrap_err();
+        assert_eq!(errs.len(), 1);
+        assert!(errs[0].message.contains("zip"));
+    }
+
+    #[test]
+    fn missing_project_xml_is_an_error() {
+        let bytes = zip_bytes("metadata.xml", "<MetaData/>");
+        let errs = parse(&bytes).unwrap_err();
+        assert!(errs[0].message.contains("project.xml not found"));
+    }
+
+    #[test]
+    fn malformed_xml_is_an_error() {
+        let errs = parse(&dawproject("<Project><oops")).unwrap_err();
+        assert!(errs[0].message.contains("valid XML"));
+    }
+
+    #[test]
+    fn multiple_bad_markers_are_all_reported() {
+        let xml = r#"<Project><Arrangement><Markers timeUnit="seconds">
+          <Marker name="no time"/>
+          <Marker time="abc" name="bad"/>
+          <Marker time="5.0" name="fine"/>
+        </Markers></Arrangement></Project>"#;
+        let errs = parse(&dawproject(xml)).unwrap_err();
+        assert_eq!(errs.len(), 2);
     }
 }
