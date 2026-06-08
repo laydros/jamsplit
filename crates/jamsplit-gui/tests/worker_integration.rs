@@ -181,3 +181,33 @@ fn export_writes_mp3s_and_summary() {
     assert!(outdir.join("02 - Closer.mp3").is_file());
     assert!(outdir.join("jamsplit-summary.json").is_file());
 }
+
+#[test]
+fn preview_reads_a_dawproject_file() {
+    let Some(ff) = common::ffmpeg_or_skip() else {
+        return;
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let audio = common::make_wav(&ff, dir.path(), 10.0);
+    let project_xml = r#"<Project><Arrangement><Markers timeUnit="seconds">
+        <Marker time="0.0" name="Opener"/>
+        <Marker time="5.0" name="Closer"/>
+    </Markers></Arrangement></Project>"#;
+    let markers = common::make_dawproject(dir.path(), project_xml);
+    let outdir = dir.path().join("out");
+
+    let outcome = run_preview(&PreviewRequest {
+        gen: 1,
+        audio,
+        markers,
+        format: None,
+        outdir,
+        overwrite: false,
+        ffmpeg: ff,
+    });
+    assert_eq!(outcome.errors, Vec::<String>::new());
+    assert_eq!(outcome.format, Some(("dawproject".to_string(), false)));
+    let plan = outcome.plan.expect("plan should build");
+    assert_eq!(plan.songs.len(), 2);
+    assert_eq!(plan.songs[0].filename, "01 - Opener.mp3");
+}

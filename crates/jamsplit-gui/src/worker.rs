@@ -1,7 +1,7 @@
 use crate::state::{ExportEnd, ExportRequest, PreviewOutcome, PreviewRequest};
 use jamsplit_core::audio::probe_audio;
 use jamsplit_core::ffmpeg::{export, ExportOptions, SongResult};
-use jamsplit_core::markers::parse_markers;
+use jamsplit_core::markers::parse_markers_bytes;
 use jamsplit_core::plan::{check_collisions, plan};
 use jamsplit_core::report::{build_summary, write_summary};
 use std::sync::mpsc::Sender;
@@ -22,8 +22,8 @@ pub fn run_preview(request: &PreviewRequest) -> PreviewOutcome {
     let mut collisions = Vec::new();
     let mut format = None;
 
-    let parsed = match std::fs::read_to_string(&request.markers) {
-        Ok(content) => match parse_markers(&content, request.format) {
+    let parsed = match std::fs::read(&request.markers) {
+        Ok(bytes) => match parse_markers_bytes(&bytes, request.format) {
             Ok(parsed) => {
                 format = Some((parsed.format.to_string(), request.format.is_some()));
                 Some(parsed)

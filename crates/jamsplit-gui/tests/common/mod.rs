@@ -19,6 +19,21 @@ pub fn ffmpeg_or_skip() -> Option<FfmpegPaths> {
     }
 }
 
+/// Write a minimal `.dawproject` (a zip holding `project.xml`) into `dir` and
+/// return its path. `project_xml` is the file body.
+pub fn make_dawproject(dir: &Path, project_xml: &str) -> PathBuf {
+    use std::io::Write;
+    use zip::write::SimpleFileOptions;
+    let path = dir.join("session.dawproject");
+    let file = std::fs::File::create(&path).unwrap();
+    let mut zw = zip::ZipWriter::new(file);
+    zw.start_file("project.xml", SimpleFileOptions::default())
+        .unwrap();
+    zw.write_all(project_xml.as_bytes()).unwrap();
+    zw.finish().unwrap();
+    path
+}
+
 /// Generate a small sine-wave WAV fixture for end-to-end tests.
 pub fn make_wav(ff: &FfmpegPaths, dir: &Path, seconds: f64) -> PathBuf {
     let path = dir.join("fixture.wav");

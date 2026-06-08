@@ -1754,6 +1754,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "winresource",
+ "zip",
 ]
 
 [[package]]

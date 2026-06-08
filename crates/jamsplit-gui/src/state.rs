@@ -11,14 +11,16 @@ pub enum FormatChoice {
     Audacity,
     Plain,
     Reaper,
+    Dawproject,
 }
 
 impl FormatChoice {
-    pub const ALL: [FormatChoice; 4] = [
+    pub const ALL: [FormatChoice; 5] = [
         FormatChoice::Auto,
         FormatChoice::Audacity,
         FormatChoice::Plain,
         FormatChoice::Reaper,
+        FormatChoice::Dawproject,
     ];
 
     pub fn label(self) -> &'static str {
@@ -27,6 +29,7 @@ impl FormatChoice {
             FormatChoice::Audacity => "audacity",
             FormatChoice::Plain => "plain",
             FormatChoice::Reaper => "reaper",
+            FormatChoice::Dawproject => "dawproject",
         }
     }
 
@@ -37,6 +40,7 @@ impl FormatChoice {
             FormatChoice::Audacity => Some(MarkerFormat::Audacity),
             FormatChoice::Plain => Some(MarkerFormat::Plain),
             FormatChoice::Reaper => Some(MarkerFormat::Reaper),
+            FormatChoice::Dawproject => Some(MarkerFormat::Dawproject),
         }
     }
 }
@@ -452,6 +456,10 @@ mod tests {
         assert_eq!(
             FormatChoice::Reaper.into_marker_format(),
             Some(MarkerFormat::Reaper)
+        );
+        assert_eq!(
+            FormatChoice::Dawproject.into_marker_format(),
+            Some(MarkerFormat::Dawproject)
         );
     }
 
