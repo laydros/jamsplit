@@ -68,14 +68,14 @@ Reading the file is the frontend's job (`parse_markers` takes content, so core n
 
 `export()` reports progress through a callback — the CLI prints from it, the GUI drives a progress bar from it. Core never prints. Cancellation is also core's job: `ExportOptions` carries a `CancelToken` (shared atomic flag), checked between songs and polled (~100 ms) while waiting on the running child. On cancel, the current ffmpeg child is killed, its `.part` removed, and the remaining songs are marked skipped in the report. The GUI's Cancel button sets the token; the CLI passes one that is never set.
 
-Times are `f64` seconds throughout. Core dependencies kept minimal: `serde`/`serde_json` (summary, ffprobe output), `thiserror`, `csv` (Reaper quoting only). CLI adds `clap` + `anyhow`; GUI adds `eframe`/`egui` + `rfd`. No async runtime, no regex, no audio crates.
+Times are `f64` seconds throughout. Core dependencies kept minimal: `serde`/`serde_json` (summary, ffprobe output), `thiserror`, `csv` (Reaper quoting only), `zip` + `roxmltree` (DAWproject import, post-v1). CLI adds `clap` + `anyhow`; GUI adds `eframe`/`egui` + `rfd`. No async runtime, no regex, no audio crates.
 
 ## CLI
 
 ```text
 jamsplit split    --audio FILE --markers FILE [--outdir DIR] [--album NAME]
                   [--artist NAME] [--overwrite] [--dry-run]
-                  [--format auto|audacity|plain|reaper] [--ffmpeg-path PATH]
+                  [--format auto|audacity|plain|reaper|dawproject] [--ffmpeg-path PATH]
 jamsplit validate --audio FILE --markers FILE [--format ...] [--ffmpeg-path ...]
 jamsplit inspect  --audio FILE --markers FILE [--format ...] [--ffmpeg-path ...]
 ```
@@ -135,6 +135,10 @@ All parsers normalize to `RawMarker { start_seconds: f64, title: String }` (titl
 - Header row `#,Name,Start,End,Length`; parsed by column name, extra columns (e.g. Color) tolerated. Quoted names containing commas handled by the `csv` crate.
 - Rows `M*` (markers) and `R*` (regions) both accepted; regions contribute their Start, End ignored (same rule as Audacity ranges).
 - Start values are parsed with the same flexible time parser. Values that look like bars/beats (e.g. `9.1.00`) fail with: "set Reaper's time unit to Minutes:Seconds and re-export." That is the supported boundary for Reaper's settings-dependent export.
+
+### Bitwig DAWproject (`.dawproject`, post-v1)
+
+A `.dawproject` is a ZIP holding `project.xml`. The reader (`markers/dawproject.rs`) reads `Project > Arrangement > Markers > Marker` and normalizes each `time` to seconds: `timeUnit="seconds"` is used directly; `timeUnit="beats"` is converted with the single `Project > Transport > Tempo` value (`time * 60 / bpm`). It refuses, with a clear collected error, when tempo automation is present, when `timeUnit` is absent, when beats markers have no tempo, when the tempo unit is not `bpm`, or when the tempo value is not finite-and-positive. Detection is by ZIP magic (`PK\x03\x04`) at the bytes layer (`parse_markers_bytes`), since a ZIP is not valid UTF-8 text. Markers only — embedded/referenced audio is ignored. See `docs/superpowers/specs/2026-06-08-dawproject-import-design.md`.
 
 ### Auto-detection
 

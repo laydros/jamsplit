@@ -33,7 +33,7 @@ The design doc records decided trade-offs (Rust over Go, per-song ffmpeg invocat
 Three-crate workspace: `jamsplit-core` (lib, all logic), `jamsplit-cli` (clap bin `jamsplit`), `jamsplit-gui` (egui bin). Full detail is in the design doc; the load-bearing rules are:
 
 - Core never prints and never depends on clap or egui. `export()` reports progress through a callback - the CLI prints from it, the GUI drives a progress bar from it.
-- Parsers (audacity/plain/reaper) are dumb: bytes in, `(start_seconds, title)` out. Every business rule (sorting, duplicates, bounds, untitled naming, filename sanitization, boundary math) lives in `plan()`, which is where unit tests concentrate.
+- Parsers (audacity/plain/reaper/dawproject) are dumb: bytes in, `(start_seconds, title)` out. Every business rule (sorting, duplicates, bounds, untitled naming, filename sanitization, boundary math) lives in `plan()`, which is where unit tests concentrate.
 - ffmpeg/ffprobe resolve in order: `--ffmpeg-path` flag, then adjacent to our executable, then PATH. The adjacent step exists so M3 can ship batteries-included zips with zero code changes - do not remove it.
 - Parse and validation problems are collected and reported all at once, never die-on-first.
 - Exports write `name.mp3.part` and rename on success; a per-song failure doesn't stop the run (exit 2 at the end).
