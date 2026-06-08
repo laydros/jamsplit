@@ -19,6 +19,7 @@ None block shipping. The manual checklist run happened 2026-06-06: everything pa
 
 ### Polish
 
+- Closing the app while a native file picker (Choose… for audio or markers) is open aborts with a winit re-entrancy panic ("tried to handle event while another event is currently being handled"). `rfd`'s blocking `pick_file()` runs a nested macOS modal loop inside egui's `update()`, and a terminate event arriving during that loop is not handled cleanly. Normal use (open → select/cancel → quit) is unaffected. The fix is switching the pickers from blocking `pick_file()` to `rfd`'s async dialog so no nested modal runs inside the event loop.
 - `on_exit` cancel hook (~5 lines): closing the window mid-export currently lets the detached ffmpeg child finish its current song (orphaned `.part` at worst — `.part` discipline protects finals).
 - "Open output folder" reads `effective_outdir()` live in the Done phase: changing the outdir after an export opens the new (empty) dir, and the button silently no-ops on `ExportEnd::Failed` when the dir was never created. Consider capturing the export's actual outdir and hiding the button on Failed.
 - `ui_done` clones the full `ExportEnd` (incl. KB-scale stderr tails) every repaint of the resting Done screen — fix via a deferred `back_clicked` flag or `Rc`.
