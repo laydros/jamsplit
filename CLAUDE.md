@@ -21,10 +21,10 @@ runbook; TODO.md tracks remaining polish and post-v1 candidates.
 
 ## Source of truth
 
-Read these before any work, in order:
+Read these before any work:
 
-1. `docs/spec.md` - v1 requirements spec
-2. `docs/superpowers/specs/2026-06-05-jamsplit-design.md` - validated design
+1. `docs/superpowers/specs/2026-06-05-jamsplit-design.md` - validated design; the binding source of truth for architecture and trade-offs. Dated feature design docs under `docs/superpowers/specs/` extend it (e.g. the DAWproject import design).
+2. `docs/spec-v1.md` - the original v1 requirements, kept for historical context. Not updated for post-v1 work; current behavior lives in `README.md` / `MARKERS.md`.
 
 The design doc records decided trade-offs (Rust over Go, per-song ffmpeg invocations over the segment muxer, workspace over single crate, egui over slint/Tauri, MP3 V0 hardcoded). Read the rationale before proposing changes that touch them; don't re-litigate them without Jason.
 

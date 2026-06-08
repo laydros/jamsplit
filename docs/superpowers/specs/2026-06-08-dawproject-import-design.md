@@ -233,12 +233,13 @@ leaving them stale would make the repo's own guidance contradict the code):
   validated design. Update it for real: add a DAWproject subsection to "Marker
   formats", add `dawproject` to the `--format auto|audacity|plain|reaper`
   synopsis, and add `zip` + `roxmltree` to the core dependency list.
-- `docs/spec.md` — this is the **v1 requirements** spec, and DAWproject was not a
-  v1 requirement. Do **not** rewrite its required-formats list (that would
-  falsely retcon v1 scope). Instead add a short "Post-v1 additions" note
-  pointing to this design doc, so a reader is not misled by the v1 format list.
+- `docs/spec-v1.md` — the frozen v1 requirements (renamed from `spec.md`, with a
+  "historical document" header). DAWproject was not a v1 requirement, so feature
+  work does **not** edit it; the source-of-truth repoint in `CLAUDE.md` /
+  `AGENTS.md` already points readers at the design docs for post-v1 behavior.
 - `CLAUDE.md` and `AGENTS.md` — add `dawproject` to their marker-format
-  references / command lists.
+  references / command lists (the source-of-truth lists were already repointed
+  when `spec.md` was renamed).
 
 ## Open questions / risks
 

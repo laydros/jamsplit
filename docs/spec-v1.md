@@ -1,5 +1,10 @@
 # jamsplit v1 Spec
 
+> **Historical document.** This is the original v1 requirements spec, kept for
+> context. It is not updated for post-v1 features. For how jamsplit behaves now,
+> see `README.md` and `MARKERS.md`; for design decisions, see the validated
+> design and the dated design docs under `docs/superpowers/specs/`.
+
 ## Goal
 Build a CLI tool that takes one long jam recording and a human-made marker file, then exports one MP3 per song.
 

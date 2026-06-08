@@ -9,7 +9,7 @@ summary: "Validated design for jamsplit: Rust workspace with core lib, CLI, and 
 
 # jamsplit Design
 
-Implements [spec.md](../../spec.md) (the v1 spec), extended with a GUI milestone. The target users are bandmates who will not use a CLI; nothing ships to them until the GUI exists.
+Implements [spec-v1.md](../../spec-v1.md) (the v1 spec), extended with a GUI milestone. The target users are bandmates who will not use a CLI; nothing ships to them until the GUI exists.
 
 ## Decisions and rationale
 
