@@ -1,6 +1,11 @@
 use super::{ParseError, RawMarker};
 use std::io::{Cursor, Read};
 
+/// 1-based row of `node` within the parsed `project.xml`, for error messages.
+fn row_of(doc: &roxmltree::Document, node: &roxmltree::Node) -> usize {
+    doc.text_pos_at(node.range().start).row as usize
+}
+
 /// Parse a DAWproject (`.dawproject`) file: a ZIP containing `project.xml`.
 /// Reads arrangement cue markers and normalizes their times to seconds.
 /// Collects every problem instead of stopping at the first, like the other
@@ -38,22 +43,27 @@ fn read_project_xml(bytes: &[u8]) -> Result<String, String> {
 
 /// Walk Project > Arrangement > Markers, converting each Marker to seconds.
 fn parse_document(doc: &roxmltree::Document) -> Result<Vec<RawMarker>, Vec<ParseError>> {
-    let row_of = |node: &roxmltree::Node| doc.text_pos_at(node.range().start).row as usize;
-
     let project = doc.root_element();
     let arrangement = match project.children().find(|n| n.has_tag_name("Arrangement")) {
         Some(a) => a,
         None => {
             return Err(vec![ParseError {
-                line: row_of(&project),
+                line: row_of(doc, &project),
                 message: "no <Arrangement> element in project.xml".to_string(),
             }])
         }
     };
 
-    if let Some(ta) = arrangement.children().find(|n| n.has_tag_name("TempoAutomation")) {
+    // jamsplit requires a single constant tempo. We refuse tempo automation for
+    // BOTH time units (not just beats): a project with a varying tempo is out of
+    // scope by design, even though seconds-unit marker times are absolute. This
+    // is a deliberate blanket refusal, not an oversight.
+    if let Some(ta) = arrangement
+        .children()
+        .find(|n| n.has_tag_name("TempoAutomation"))
+    {
         return Err(vec![ParseError {
-            line: row_of(&ta),
+            line: row_of(doc, &ta),
             message: "tempo automation is not supported; jamsplit needs a single constant tempo"
                 .to_string(),
         }]);
@@ -63,7 +73,7 @@ fn parse_document(doc: &roxmltree::Document) -> Result<Vec<RawMarker>, Vec<Parse
         Some(m) => m,
         None => {
             return Err(vec![ParseError {
-                line: row_of(&arrangement),
+                line: row_of(doc, &arrangement),
                 message: "no <Markers> in the arrangement (nothing to split on)".to_string(),
             }])
         }
@@ -73,7 +83,7 @@ fn parse_document(doc: &roxmltree::Document) -> Result<Vec<RawMarker>, Vec<Parse
         Some(u) => u,
         None => {
             return Err(vec![ParseError {
-                line: row_of(&markers_el),
+                line: row_of(doc, &markers_el),
                 message: "<Markers> has no timeUnit attribute; cannot tell beats from seconds"
                     .to_string(),
             }])
@@ -83,10 +93,10 @@ fn parse_document(doc: &roxmltree::Document) -> Result<Vec<RawMarker>, Vec<Parse
     // None => seconds; Some(bpm) => beats converted with this constant tempo.
     let beats_bpm: Option<f64> = match time_unit {
         "seconds" => None,
-        "beats" => Some(resolve_bpm(doc, &project, &markers_el)?),
+        "beats" => Some(resolve_bpm(doc, &markers_el)?),
         other => {
             return Err(vec![ParseError {
-                line: row_of(&markers_el),
+                line: row_of(doc, &markers_el),
                 message: format!("unknown timeUnit {other:?} (expected \"seconds\" or \"beats\")"),
             }])
         }
@@ -95,7 +105,7 @@ fn parse_document(doc: &roxmltree::Document) -> Result<Vec<RawMarker>, Vec<Parse
     let mut markers = Vec::new();
     let mut errors = Vec::new();
     for m in markers_el.children().filter(|n| n.has_tag_name("Marker")) {
-        let line = row_of(&m);
+        let line = row_of(doc, &m);
         let time = match m.attribute("time").map(str::parse::<f64>) {
             Some(Ok(t)) if t.is_finite() && t >= 0.0 => t,
             Some(Ok(_)) => {
@@ -133,7 +143,7 @@ fn parse_document(doc: &roxmltree::Document) -> Result<Vec<RawMarker>, Vec<Parse
 
     if markers.is_empty() && errors.is_empty() {
         errors.push(ParseError {
-            line: row_of(&markers_el),
+            line: row_of(doc, &markers_el),
             message: "no <Marker> elements found (nothing to split on)".to_string(),
         });
     }
@@ -150,11 +160,9 @@ fn parse_document(doc: &roxmltree::Document) -> Result<Vec<RawMarker>, Vec<Parse
 /// unit, or a value that is not finite and strictly positive.
 fn resolve_bpm(
     doc: &roxmltree::Document,
-    project: &roxmltree::Node,
     markers_el: &roxmltree::Node,
 ) -> Result<f64, Vec<ParseError>> {
-    let row_of = |node: &roxmltree::Node| doc.text_pos_at(node.range().start).row as usize;
-
+    let project = doc.root_element();
     let tempo = project
         .children()
         .find(|n| n.has_tag_name("Transport"))
@@ -163,7 +171,7 @@ fn resolve_bpm(
         Some(t) => t,
         None => {
             return Err(vec![ParseError {
-                line: row_of(markers_el),
+                line: row_of(doc, markers_el),
                 message: "markers are in beats but the project has no <Transport><Tempo>"
                     .to_string(),
             }])
@@ -174,7 +182,7 @@ fn resolve_bpm(
         Some("bpm") => {}
         other => {
             return Err(vec![ParseError {
-                line: row_of(&tempo),
+                line: row_of(doc, &tempo),
                 message: format!(
                     "tempo unit is {:?}, expected \"bpm\"",
                     other.unwrap_or("missing")
@@ -186,7 +194,7 @@ fn resolve_bpm(
     match tempo.attribute("value").map(str::parse::<f64>) {
         Some(Ok(v)) if v.is_finite() && v > 0.0 => Ok(v),
         _ => Err(vec![ParseError {
-            line: row_of(&tempo),
+            line: row_of(doc, &tempo),
             message: "tempo value is missing or not a positive number".to_string(),
         }]),
     }
@@ -203,7 +211,8 @@ mod tests {
         let mut buf = Vec::new();
         {
             let mut zw = zip::ZipWriter::new(Cursor::new(&mut buf));
-            zw.start_file(entry_name, SimpleFileOptions::default()).unwrap();
+            zw.start_file(entry_name, SimpleFileOptions::default())
+                .unwrap();
             zw.write_all(body.as_bytes()).unwrap();
             zw.finish().unwrap();
         }
@@ -282,7 +291,11 @@ mod tests {
             <Marker time="4" name="X"/>
           </Markers></Arrangement></Project>"#;
         let errs = parse(&dawproject(xml)).unwrap_err();
-        assert!(errs[0].message.contains("bpm"));
+        assert!(
+            errs[0].message.contains("tempo unit") && errs[0].message.contains("bpm"),
+            "got: {}",
+            errs[0].message
+        );
     }
 
     #[test]
@@ -342,7 +355,10 @@ mod tests {
 
     #[test]
     fn missing_markers_element_is_an_error() {
-        let errs = parse(&dawproject("<Project><Arrangement></Arrangement></Project>")).unwrap_err();
+        let errs = parse(&dawproject(
+            "<Project><Arrangement></Arrangement></Project>",
+        ))
+        .unwrap_err();
         assert!(errs[0].message.contains("no <Markers>"));
     }
 
@@ -364,6 +380,15 @@ mod tests {
     fn malformed_xml_is_an_error() {
         let errs = parse(&dawproject("<Project><oops")).unwrap_err();
         assert!(errs[0].message.contains("valid XML"));
+    }
+
+    #[test]
+    fn negative_marker_time_is_refused() {
+        let xml = r#"<Project><Arrangement><Markers timeUnit="seconds">
+          <Marker time="-1.0" name="X"/>
+        </Markers></Arrangement></Project>"#;
+        let errs = parse(&dawproject(xml)).unwrap_err();
+        assert!(errs[0].message.contains("non-negative"));
     }
 
     #[test]
