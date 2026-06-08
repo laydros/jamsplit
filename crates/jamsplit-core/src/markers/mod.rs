@@ -1,4 +1,5 @@
 pub mod audacity;
+pub mod dawproject;
 pub mod plain;
 pub mod reaper;
 
