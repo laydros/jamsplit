@@ -82,6 +82,7 @@ pub enum MarkerFormat {
     Audacity,
     Plain,
     Reaper,
+    Dawproject,
 }
 
 impl std::str::FromStr for MarkerFormat {
@@ -91,8 +92,9 @@ impl std::str::FromStr for MarkerFormat {
             "audacity" => Ok(Self::Audacity),
             "plain" => Ok(Self::Plain),
             "reaper" => Ok(Self::Reaper),
+            "dawproject" => Ok(Self::Dawproject),
             other => Err(format!(
-                "unknown format '{other}' (expected audacity, plain, or reaper)"
+                "unknown format '{other}' (expected audacity, plain, reaper, or dawproject)"
             )),
         }
     }
@@ -104,6 +106,7 @@ impl std::fmt::Display for MarkerFormat {
             Self::Audacity => "audacity",
             Self::Plain => "plain",
             Self::Reaper => "reaper",
+            Self::Dawproject => "dawproject",
         })
     }
 }
@@ -158,6 +161,16 @@ pub fn parse_markers(
         MarkerFormat::Audacity => audacity::parse(content)?,
         MarkerFormat::Plain => plain::parse(content)?,
         MarkerFormat::Reaper => reaper::parse(content)?,
+        // DAWproject is a binary (zip) format; `parse_markers_bytes` routes it to
+        // `dawproject::parse` before reaching here. Reaching this arm means a text
+        // parse was requested for a binary format — report it, never panic.
+        MarkerFormat::Dawproject => {
+            return Err(vec![ParseError {
+                line: 1,
+                message: "dawproject is a binary format; read it with parse_markers_bytes"
+                    .to_string(),
+            }])
+        }
     };
     Ok(ParsedMarkers { markers, format })
 }
@@ -273,6 +286,15 @@ mod tests {
         let got = parse_markers("0:00 One\n", None).unwrap();
         assert_eq!(got.format, MarkerFormat::Plain);
         assert_eq!(got.markers.len(), 1);
+    }
+
+    #[test]
+    fn dawproject_format_roundtrips_name() {
+        assert_eq!(
+            "dawproject".parse::<MarkerFormat>(),
+            Ok(MarkerFormat::Dawproject)
+        );
+        assert_eq!(MarkerFormat::Dawproject.to_string(), "dawproject");
     }
 
     #[test]
