@@ -176,6 +176,35 @@ pub fn parse_markers(
     Ok(ParsedMarkers { markers, format })
 }
 
+/// Parse markers from the raw bytes of a marker file. A `.dawproject` (ZIP)
+/// is routed to the DAWproject reader; everything else is decoded as UTF-8 and
+/// handled by the existing text parsers. Auto-detection uses the ZIP magic
+/// number; `Some(MarkerFormat::Dawproject)` forces the DAWproject path.
+pub fn parse_markers_bytes(
+    bytes: &[u8],
+    format: Option<MarkerFormat>,
+) -> Result<ParsedMarkers, Vec<ParseError>> {
+    let is_zip = bytes.starts_with(b"PK\x03\x04");
+    if format == Some(MarkerFormat::Dawproject) || (format.is_none() && is_zip) {
+        let markers = dawproject::parse(bytes)?;
+        return Ok(ParsedMarkers {
+            markers,
+            format: MarkerFormat::Dawproject,
+        });
+    }
+    let content = match std::str::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(_) => {
+            return Err(vec![ParseError {
+                line: 1,
+                message: "marker file is not valid UTF-8 text (and not a .dawproject file)"
+                    .to_string(),
+            }])
+        }
+    };
+    parse_markers(content, format)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,5 +340,55 @@ mod tests {
         let got = parse_markers("\u{feff}0:00 One\n", None).unwrap();
         assert_eq!(got.format, MarkerFormat::Plain);
         assert_eq!(got.markers[0].title, "One");
+    }
+
+    /// Minimal valid `.dawproject` (seconds) for routing tests.
+    fn dawproject_seconds_bytes() -> Vec<u8> {
+        use std::io::Write;
+        use zip::write::SimpleFileOptions;
+        let xml = r#"<Project><Arrangement><Markers timeUnit="seconds">
+          <Marker time="0.0" name="One"/>
+        </Markers></Arrangement></Project>"#;
+        let mut buf = Vec::new();
+        {
+            let mut zw = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            zw.start_file("project.xml", SimpleFileOptions::default())
+                .unwrap();
+            zw.write_all(xml.as_bytes()).unwrap();
+            zw.finish().unwrap();
+        }
+        buf
+    }
+
+    #[test]
+    fn bytes_router_autodetects_dawproject_by_zip_magic() {
+        let parsed = parse_markers_bytes(&dawproject_seconds_bytes(), None).unwrap();
+        assert_eq!(parsed.format, MarkerFormat::Dawproject);
+        assert_eq!(parsed.markers.len(), 1);
+    }
+
+    #[test]
+    fn bytes_router_handles_text_like_the_string_path() {
+        let parsed = parse_markers_bytes(b"0:00 One\n", None).unwrap();
+        assert_eq!(parsed.format, MarkerFormat::Plain);
+        assert_eq!(parsed.markers[0].title, "One");
+    }
+
+    #[test]
+    fn bytes_router_forced_dawproject_on_text_errors_cleanly() {
+        let errs = parse_markers_bytes(b"0:00 One\n", Some(MarkerFormat::Dawproject)).unwrap_err();
+        // text bytes forced as dawproject fail in the zip reader, not silently
+        assert!(
+            errs[0].message.contains("zip"),
+            "got: {}",
+            errs[0].message
+        );
+    }
+
+    #[test]
+    fn bytes_router_rejects_non_utf8_text() {
+        // 0xFF 0xFE is neither zip magic nor valid UTF-8.
+        let errs = parse_markers_bytes(&[0xFF, 0xFE, 0x00], None).unwrap_err();
+        assert!(errs[0].message.contains("UTF-8"));
     }
 }
