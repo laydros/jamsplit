@@ -378,11 +378,7 @@ mod tests {
     fn bytes_router_forced_dawproject_on_text_errors_cleanly() {
         let errs = parse_markers_bytes(b"0:00 One\n", Some(MarkerFormat::Dawproject)).unwrap_err();
         // text bytes forced as dawproject fail in the zip reader, not silently
-        assert!(
-            errs[0].message.contains("zip"),
-            "got: {}",
-            errs[0].message
-        );
+        assert!(errs[0].message.contains("zip"), "got: {}", errs[0].message);
     }
 
     #[test]
