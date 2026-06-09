@@ -63,7 +63,7 @@ a binary directly — ffprobe must sit next to it.
 ## Marker formats
 
 For step-by-step instructions on creating marker files in Audacity, REAPER,
-Bitwig, or by hand, see [MARKERS.md](MARKERS.md).
+a DAW that exports DAWproject, or by hand, see [MARKERS.md](MARKERS.md).
 
 The format is auto-detected (announced on stderr); force one with
 `--format audacity|plain|reaper|dawproject`.
@@ -86,10 +86,13 @@ Only label *start* times are used; range ends are ignored.
 Minutes:Seconds first; bars/beats exports are rejected with a hint. Both
 markers (M) and regions (R) are used; region ends are ignored.
 
-**Bitwig (DAWproject)** — `File > Export DAWproject`. jamsplit reads the
-arrangement cue markers; the project must use a single constant tempo (tempo
-changes are rejected). `.dawproject` files are recognized automatically. Only
-markers are imported, not the audio.
+**DAWproject** — export a `.dawproject` file from your DAW (Bitwig, Cubase,
+Studio One). jamsplit follows the open DAWproject spec, so it should work with
+any conforming export, though it has not yet been tested against a real one.
+It reads the arrangement cue markers; the project must use a single constant
+tempo (tempo changes are rejected). A non-conforming file is refused with a
+clear message rather than mis-split. `.dawproject` files are recognized
+automatically. Only markers are imported, not the audio.
 
 Markers mark **song starts only**: song N ends where song N+1 begins, the
 last song runs to the end of the file, and audio before the first marker is

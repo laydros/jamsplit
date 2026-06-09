@@ -73,10 +73,19 @@ If validation says the start time looks like bars/beats, re-export after
 changing REAPER's time display to minutes and seconds. A bars/beats value like
 `9.1.00` is not accepted because it is not an audio timestamp.
 
-## Bitwig (DAWproject)
+## DAWproject
 
-Use a Bitwig `.dawproject` export when the session is laid out in Bitwig Studio
-and you have placed cue markers at the song starts.
+Use a `.dawproject` export when your session is laid out in a DAW that supports
+the open [DAWproject](https://github.com/bitwig/dawproject) format — Bitwig
+Studio, Cubase, or Studio One — and you have placed cue markers at the song
+starts.
+
+jamsplit follows the DAWproject spec rather than any single DAW, so it should
+work with a conforming export from any of them. It has not yet been tested
+against a real export, so treat it as best-effort: a non-conforming file is
+refused with a clear message rather than silently mis-split.
+
+The steps below use Bitwig Studio; adapt them to your DAW.
 
 1. Open the session in Bitwig Studio.
 2. Add a cue marker at each song start and name it with the song title.
@@ -95,7 +104,7 @@ Requirements and limits:
   (tempo automation), jamsplit refuses the file rather than guess wrong split
   points — flatten the tempo and re-export.
 - Markers must carry a time unit jamsplit understands (`seconds` or `beats`);
-  Bitwig sets this on export.
+  a conforming DAWproject export sets this.
 
 ## Plain text
 

@@ -30,31 +30,19 @@ None block shipping. The manual checklist run happened 2026-06-06: everything pa
 - `gen` field in `PreviewRequest` becomes a reserved keyword in edition 2024 (`r#gen` needed on edition migration).
 - `probe_audio` runs ffprobe with no subprocess timeout (core-owned, predates M2; same exposure as the CLI).
 
-## Docs / website (deferred 2026-06-08, after v0.3.0)
+## Docs / website (done 2026-06-09)
 
-Not started. Two changes Jason wants:
+Both changes shipped:
 
-- Reframe the DAWproject coverage from Bitwig-specific to spec-based. Target
-  wording: jamsplit follows the open DAWproject spec, so it will probably work
-  with Cubase, Bitwig, and Studio One `.dawproject` exports — but it is still
-  untested against a real export from any of them. Keep the existing
-  refuse-when-unknown framing (a non-conforming file fails loudly with a clear
-  message; it won't silently mis-split). Spots to edit:
-  - `index.html` — lede (~line 332, "...from Audacity, REAPER, Bitwig, or a
-    plain text list"), the "where each song begins" intro (~371), the `Bitwig`
-    format card heading and steps (~411-418), and the Use The App list items
-    (~437-438, "Bitwig (.dawproject)").
-  - `README.md` — the marker-source sentence (~line 66) and the
-    `Bitwig (DAWproject)` paragraph (~89-91).
-  - `MARKERS.md` — the `## Bitwig (DAWproject)` section (~76-98).
-  - The internal design docs already state the spec-based + unverified reality
-    (`docs/superpowers/specs/2026-06-08-dawproject-import-design.md`, "Open
-    questions / risks"), so no change is needed there.
-- Headline: change the `index.html` `<h1>` (~line 331) from "Split one long jam
-  recording into song files." to "Split one long recording into song files."
-  The `<title>` (~line 6) and `og:description` (~line 10) also say "jam
-  recording" — confirm with Jason whether those should change too for
-  consistency.
+- DAWproject coverage reframed from Bitwig-specific to spec-based across
+  `index.html`, `README.md`, and `MARKERS.md`: jamsplit follows the open
+  DAWproject spec, so it should work with Bitwig, Cubase, and Studio One
+  `.dawproject` exports, but is still untested against a real export. The
+  refuse-when-unknown framing (a non-conforming file fails loudly rather than
+  mis-splitting) is preserved.
+- Headline de-jammed: `index.html` `<h1>` now reads "Split one long recording
+  into song files." The `<title>` and `og:description` were updated to match
+  (confirmed with Jason 2026-06-09).
 
 ## Next milestone
 
